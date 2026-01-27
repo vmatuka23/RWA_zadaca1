@@ -5,7 +5,7 @@ import { kreirajSHA256 } from "../zajednicko/kodovi.js";
 export class RestKorisnik {
     kdao;
     constructor() {
-        const db = new Baza("podaci/RWA2025vmatuka23.sqlite"); // ili tvoja baza
+        const db = new Baza("podaci/RWA2025vmatuka23.sqlite");
         db.spoji();
         this.kdao = new KorisnikDAO(db);
     }

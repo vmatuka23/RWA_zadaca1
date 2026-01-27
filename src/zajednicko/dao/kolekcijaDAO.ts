@@ -44,4 +44,37 @@ export default class KolekcijaDAO {
         const sql = `DELETE FROM kolekcija WHERE id = ?`;
         return await this.db.ubaciAzurirajPodatke(sql, [id]);
     }
+
+    async dajJavneKolekcije(): Promise<Kolekcija[]> {
+        const sql = `SELECT * FROM kolekcija WHERE javno = 1`;
+        return await this.db.dajPodatke(sql, []);
+    }
+
+    async dajKolekcijeKorisnika(korisnikId: number): Promise<Kolekcija[]> {
+        const sql = `SELECT * FROM kolekcija WHERE javno = 1 OR id IN (
+            SELECT kolekcijaId FROM korisnik_kolekcija WHERE korisnikId = ?
+        )`;
+        return await this.db.dajPodatke(sql, [korisnikId]);
+    }
+
+    async jeVlasnikKolekcije(kolekcijaId: number, korisnikId: number): Promise<boolean> {
+        const sql = `SELECT * FROM korisnik_kolekcija WHERE kolekcijaId = ? AND korisnikId = ?`;
+        const rez = await this.db.dajPodatke(sql, [kolekcijaId, korisnikId]);
+        return rez.length > 0;
+    }
+
+    async dodajVlasnikaKolekciji(kolekcijaId: number, korisnikId: number) {
+        const sql = `INSERT INTO korisnik_kolekcija (korisnikId, kolekcijaId) VALUES (?, ?)`;
+        return await this.db.ubaciAzurirajPodatke(sql, [korisnikId, kolekcijaId]);
+    }
+
+    async dodajMultimedijuKolekciji(kolekcijaId: number, multimedijaId: number) {
+        const sql = `UPDATE multimedija SET kolekcijaId = ? WHERE id = ?`;
+        return await this.db.ubaciAzurirajPodatke(sql, [kolekcijaId, multimedijaId]);
+    }
+
+    async ukloniMultimedijuIzKolekcije(kolekcijaId: number, multimedijaId: number) {
+        const sql = `UPDATE multimedija SET kolekcijaId = NULL WHERE id = ? AND kolekcijaId = ?`;
+        return await this.db.ubaciAzurirajPodatke(sql, [multimedijaId, kolekcijaId]);
+    }
 }

@@ -1,63 +1,66 @@
 import { Request, Response } from "express";
-import { Database } from "sqlite3";
-import { Kolekcija } from "../servisI/kolekcijaI.js";
+import Baza from "../zajednicko/sqliteBaza.js";
+import KolekcijaDAO, { Kolekcija } from "../zajednicko/dao/kolekcijaDAO.js";
 
 export class RestKolekcija {
-  db: Database;
+  private kdao: KolekcijaDAO;
 
-  constructor(db: Database) {
-    this.db = db;
+  constructor() {
+    const db = new Baza("podaci/RWA2025vmatuka23.sqlite");
+    db.spoji();
+    this.kdao = new KolekcijaDAO(db);
   }
 
-  // -------------------------------------------------
-  // Dohvat svih kolekcija
-  getKolekcije(req: Request, res: Response) {
+  async getKolekcije(req: Request, res: Response) {
+    res.type("application/json");
     const uloga = req.session?.korisnik?.uloga;
     const korisnikId = req.session?.korisnik?.id;
 
-    let sql = `SELECT * FROM kolekcija`;
-    const params: any[] = [];
+    try {
+      let kolekcije: Kolekcija[];
 
-    if (uloga === "gost") {
-      sql += ` WHERE javno = 1`;
-    } else if (uloga === "korisnik") {
-      sql += ` WHERE javno = 1 OR id IN (
-        SELECT kolekcijaId FROM korisnik_kolekcija WHERE korisnikId = ?
-      )`;
-      params.push(korisnikId);
+      if (uloga === "gost") {
+        kolekcije = await this.kdao.dajJavneKolekcije();
+      } else if (uloga === "korisnik") {
+        kolekcije = await this.kdao.dajKolekcijeKorisnika(korisnikId!);
+      } else {
+        kolekcije = await this.kdao.dajSveKolekcije();
+      }
+
+      res.send(JSON.stringify(kolekcije));
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
     }
-
-    this.db.all(sql, params, (err, rows: Kolekcija[]) => {
-      if (err) return res.status(500).json({ greska: err.message });
-      return res.json(rows);
-    });
   }
-
-  // -------------------------------------------------
-  // Dohvat jedne kolekcije po ID
-  getKolekcijaPoId(req: Request, res: Response) {
+  async getKolekcijaPoId(req: Request, res: Response): Promise<void> {
+    res.type("application/json");
     const id = Number(req.params["id"]);
     const uloga = req.session?.korisnik?.uloga;
     const korisnikId = req.session?.korisnik?.id;
 
-    this.db.get(`SELECT * FROM kolekcija WHERE id=?`, [id], async (err, row: Kolekcija) => {
-      if (err) return res.status(500).json({ greska: err.message });
-      if (!row) return res.status(404).json({ greska: "Kolekcija ne postoji" });
-
-      if (
-        (uloga === "gost" && row.javno !== true) ||
-        (uloga === "korisnik" && row.javno !== true && !(await this.jeVlasnik(id, korisnikId!)))
-      ) {
-        return res.status(403).json({ greska: "Nemate pravo pristupa" });
+    try {
+      const row = await this.kdao.dajKolekcijuPoId(id);
+      if (!row) {
+        res.status(404).json({ greska: "Kolekcija ne postoji" });
+        return;
       }
 
-      return res.json(row);
-    });
+      if (
+        (uloga === "gost" && row.javno !== 1) ||
+        (uloga === "korisnik" && row.javno !== 1 && !(await this.kdao.jeVlasnikKolekcije(id, korisnikId!)))
+      ) {
+        res.status(403).json({ greska: "Nemate pravo pristupa" });
+        return;
+      }
+
+      res.json(row);
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
+    }
   }
 
-  // -------------------------------------------------
-  // Dodavanje nove kolekcije
-  postKolekcija(req: Request, res: Response): void {
+  async postKolekcija(req: Request, res: Response): Promise<void> {
+    res.type("application/json");
     const { naziv, opis, istaknutaSlika, javno } = req.body as Kolekcija;
     const korisnikId = req.session?.korisnik?.id;
 
@@ -66,146 +69,123 @@ export class RestKolekcija {
       return;
     }
 
-    const sql = `INSERT INTO kolekcija (naziv, opis, istaknutaSlika, javno) VALUES (?, ?, ?, ?)`;
+    try {
+      const novaKolekcija: Kolekcija = {
+        naziv,
+        opis: opis || "",
+        istaknutaSlika: istaknutaSlika || "",
+        javno: javno ? 1 : 0
+      };
 
-    this.db.run(sql, [naziv, opis || "", istaknutaSlika || "", javno ? 1 : 0], function (err) {
-      if (err) return res.status(500).json({ greska: err.message });
-      const kolekcijaId = this.lastID;
-
+      const poruka = await this.kdao.dodajKolekciju(novaKolekcija);
+      
       // Automatski dodaj vlasnika u korisnik_kolekcija
-      const sqlLink = `INSERT INTO korisnik_kolekcija (korisnikId, kolekcijaId) VALUES (?, ?)`;
-      req.app.locals["db"].run(sqlLink, [korisnikId, kolekcijaId], function (err: any) {
-        if (err) console.error("Greška pri povezivanju korisnika s kolekcijom", err);
-      });
+      if ((poruka as any).id) {
+        await this.kdao.dodajVlasnikaKolekciji((poruka as any).id, korisnikId!);
+      }
 
-      return res.status(201).json({ id: kolekcijaId });
-    });
+      res.status(201).json(poruka);
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
+    }
   }
 
-  // -------------------------------------------------
-  // Ažuriranje kolekcije
-  putKolekcija(req: Request, res: Response): void {
+  async putKolekcija(req: Request, res: Response): Promise<void> {
+    res.type("application/json");
     const id = Number(req.params["id"]);
     const { naziv, opis, istaknutaSlika, javno } = req.body as Kolekcija;
     const korisnikId = req.session?.korisnik?.id;
     const uloga = req.session?.korisnik?.uloga;
 
-    this.db.get(`SELECT * FROM kolekcija WHERE id=?`, [id], async (err, row: Kolekcija): Promise<void> => {
-      if (err) {
-        res.status(500).json({ greska: err.message });
-        return;
-      }
+    try {
+      const row = await this.kdao.dajKolekcijuPoId(id);
       if (!row) {
         res.status(404).json({ greska: "Kolekcija ne postoji" });
         return;
       }
 
-      if (!(await this.jeVlasnik(id, korisnikId!)) && uloga !== "moderator" && uloga !== "admin") {
+      if (!(await this.kdao.jeVlasnikKolekcije(id, korisnikId!)) && uloga !== "moderator" && uloga !== "admin") {
         res.status(403).json({ greska: "Nemate pravo uređivati ovu kolekciju" });
         return;
       }
 
-      const sql = `UPDATE kolekcija SET naziv=?, opis=?, istaknutaSlika=?, javno=? WHERE id=?`;
-      this.db.run(
-        sql,
-        [
-          naziv || row.naziv,
-          opis || row.opis,
-          istaknutaSlika || row.istaknutaSlika,
-          javno != null ? (javno ? 1 : 0) : row.javno,
-          id,
-        ],
-        function (err) {
-          if (err) return res.status(500).json({ greska: err.message });
-          return res.json({ poruka: "Kolekcija uspješno ažurirana" });
-        }
-      );
-    });
+      const azuriranaKolekcija: Kolekcija = {
+        id,
+        naziv: naziv || row.naziv,
+        opis: opis || row.opis || "",
+        istaknutaSlika: istaknutaSlika || row.istaknutaSlika || "",
+        javno: javno != null ? (javno ? 1 : 0) : (row.javno ?? 0)
+      };
+
+      await this.kdao.azurirajKolekciju(azuriranaKolekcija);
+      res.json({ poruka: "Kolekcija uspješno ažurirana" });
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
+    }
   }
 
-  // -------------------------------------------------
-  // Brisanje kolekcije
-  deleteKolekcija(req: Request, res: Response): void {
+  async deleteKolekcija(req: Request, res: Response): Promise<void> {
+    res.type("application/json");
     const id = Number(req.params["id"]);
     const korisnikId = req.session?.korisnik?.id;
     const uloga = req.session?.korisnik?.uloga;
 
-    this.db.get(`SELECT * FROM kolekcija WHERE id=?`, [id], async (err, row: Kolekcija): Promise<void> => {
-      if (err) {
-        res.status(500).json({ greska: err.message });
-        return;
-      }
+    try {
+      const row = await this.kdao.dajKolekcijuPoId(id);
       if (!row) {
         res.status(404).json({ greska: "Kolekcija ne postoji" });
         return;
       }
 
-      if (!(await this.jeVlasnik(id, korisnikId!)) && uloga !== "moderator" && uloga !== "admin") {
+      if (!(await this.kdao.jeVlasnikKolekcije(id, korisnikId!)) && uloga !== "moderator" && uloga !== "admin") {
         res.status(403).json({ greska: "Nemate pravo brisati ovu kolekciju" });
         return;
       }
 
-      this.db.run(`DELETE FROM kolekcija WHERE id=?`, [id], function (err) {
-        if (err) return res.status(500).json({ greska: err.message });
-        return res.json({ poruka: "Kolekcija obrisana" });
-      });
-    });
+      await this.kdao.obrisiKolekciju(id);
+      res.json({ poruka: "Kolekcija obrisana" });
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
+    }
   }
 
-  // -------------------------------------------------
-  // Dodavanje multimedije u kolekciju
-  dodajMultimediju(req: Request, res: Response): void {
+  async dodajMultimediju(req: Request, res: Response): Promise<void> {
+    res.type("application/json");
     const kolekcijaId = Number(req.params["id"]);
     const { multimedijaId } = req.body;
     const korisnikId = req.session?.korisnik?.id;
 
-    this.jeVlasnik(kolekcijaId, korisnikId!).then((vlasnik) => {
+    try {
+      const vlasnik = await this.kdao.jeVlasnikKolekcije(kolekcijaId, korisnikId!);
       if (!vlasnik && req.session?.korisnik?.uloga !== "moderator" && req.session?.korisnik?.uloga !== "admin") {
         res.status(403).json({ greska: "Nemate pravo uređivati ovu kolekciju" });
         return;
       }
 
-      const sql = `UPDATE multimedija SET kolekcijaId=? WHERE id=?`;
-      this.db.run(sql, [kolekcijaId, multimedijaId], function (err) {
-        if (err) return res.status(500).json({ greska: err.message });
-        return res.json({ poruka: "Multimedija dodana u kolekciju" });
-      });
-    });
+      await this.kdao.dodajMultimedijuKolekciji(kolekcijaId, multimedijaId);
+      res.json({ poruka: "Multimedija dodana u kolekciju" });
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
+    }
   }
 
-  // -------------------------------------------------
-  // Uklanjanje multimedije iz kolekcije
-  ukloniMultimediju(req: Request, res: Response): void {
+  async ukloniMultimediju(req: Request, res: Response): Promise<void> {
+    res.type("application/json");
     const kolekcijaId = Number(req.params["id"]);
     const multimedijaId = Number(req.params["multimedijaId"]);
     const korisnikId = req.session?.korisnik?.id;
 
-    this.jeVlasnik(kolekcijaId, korisnikId!).then((vlasnik) => {
+    try {
+      const vlasnik = await this.kdao.jeVlasnikKolekcije(kolekcijaId, korisnikId!);
       if (!vlasnik && req.session?.korisnik?.uloga !== "moderator" && req.session?.korisnik?.uloga !== "admin") {
         res.status(403).json({ greska: "Nemate pravo uređivati ovu kolekciju" });
         return;
       }
 
-      const sql = `UPDATE multimedija SET kolekcijaId=NULL WHERE id=? AND kolekcijaId=?`;
-      this.db.run(sql, [multimedijaId, kolekcijaId], function (err) {
-        if (err) return res.status(500).json({ greska: err.message });
-        return res.json({ poruka: "Multimedija uklonjena iz kolekcije" });
-      });
-    });
-  }
-
-  // -------------------------------------------------
-  // Pomoćna metoda: provjera vlasništva kolekcije
-  async jeVlasnik(kolekcijaId: number, korisnikId: number): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      this.db.get(
-        `SELECT * FROM korisnik_kolekcija WHERE kolekcijaId=? AND korisnikId=?`,
-        [kolekcijaId, korisnikId],
-        (err, row) => {
-          if (err) return reject(err);
-          resolve(!!row);
-        }
-      );
-    });
+      await this.kdao.ukloniMultimedijuIzKolekcije(kolekcijaId, multimedijaId);
+      res.json({ poruka: "Multimedija uklonjena iz kolekcije" });
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
+    }
   }
 }

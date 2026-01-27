@@ -1,60 +1,68 @@
 import { Request, Response } from "express";
-import { Database } from "sqlite3";
-import { Multimedija } from "../servisI/multimedijaI.js";
+import Baza from "../zajednicko/sqliteBaza.js";
+import MultimedijaDAO, { Multimedija } from "../zajednicko/dao/multimedijaDAO.js";
 
 export class RestMultimedija {
-  db: Database;
+  private mdao: MultimedijaDAO;
 
-  constructor(db: Database) {
-    this.db = db;
+  constructor() {
+    const db = new Baza("podaci/RWA2025vmatuka23.sqlite");
+    db.spoji();
+    this.mdao = new MultimedijaDAO(db);
   }
 
-  // Dohvat svih multimedija
-  getMultimedija(req: Request, res: Response) {
+  async getMultimedija(req: Request, res: Response) {
+    res.type("application/json");
     const uloga = req.session?.korisnik?.uloga;
     const korisnikId = req.session?.korisnik?.id;
-    let sql = `SELECT * FROM multimedija`;
-    const params: any[] = [];
-
-    if (uloga === "gost") {
-      sql += ` WHERE javno = 1`;
-    } else if (uloga === "korisnik") {
-      sql += ` WHERE javno = 1 OR kolekcijaId IN (
-        SELECT kolekcijaId FROM korisnik_kolekcija WHERE korisnikId = ?
-      )`;
-      params.push(korisnikId);
+    
+    try {
+      let multimedije: Multimedija[];
+      
+      if (uloga === "gost") {
+        multimedije = await this.mdao.dajJavnoSadrzaje();
+      } else if (uloga === "korisnik") {
+        multimedije = await this.mdao.dajSadrzajePristupPovezano(korisnikId!);
+      } else {
+        multimedije = await this.mdao.dajSveSadrzaje();
+      }
+      
+      res.send(JSON.stringify(multimedije));
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
     }
-
-    this.db.all(sql, params, (err, rows: Multimedija[]) => {
-      if (err) return res.status(500).json({ greska: err.message });
-      return res.json(rows);
-    });
   }
 
-  // Dohvat jednog multimedijalnog zapisa po ID
-  getMultimedijaPoId(req: Request, res: Response) {
+  async getMultimedijaPoId(req: Request, res: Response): Promise<void> {
+    res.type("application/json");
     const id = Number(req.params["id"]);
     const uloga = req.session?.korisnik?.uloga;
     const korisnikId = req.session?.korisnik?.id;
 
-    this.db.get(`SELECT * FROM multimedija WHERE id=?`, [id], async (err, row: Multimedija) => {
-      if (err) return res.status(500).json({ greska: err.message });
-      if (!row) return res.status(404).json({ greska: "Multimedija ne postoji" });
+    try {
+      const row = await this.mdao.dajSadrzajPoId(id);
+      if (!row) {
+        res.status(404).json({ greska: "Multimedija ne postoji" });
+        return;
+      }
 
       // Provjera prava pristupa
       if (
-        (uloga === "gost" && row.javno !== true) ||
-        (uloga === "korisnik" && row.javno !== true && !(await this.jeVlasnik(row.kolekcijaId, korisnikId!)))
+        (uloga === "gost" && row.javno !== 1) ||
+        (uloga === "korisnik" && row.javno !== 1 && !(await this.mdao.jeVlasnikKolekcije(row.kolekcijaId, korisnikId!)))
       ) {
-        return res.status(403).json({ greska: "Nemate pravo pristupa" });
+        res.status(403).json({ greska: "Nemate pravo pristupa" });
+        return;
       }
 
-      return res.json(row);
-    });
+      res.json(row);
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
+    }
   }
 
-  // Dodavanje nove multimedije
-  postMultimedija(req: Request, res: Response): void {
+  async postMultimedija(req: Request, res: Response): Promise<void> {
+    res.type("application/json");
     const { naziv, tip, putanja, kolekcijaId, javno, autor } = req.body as Multimedija;
 
     if (!naziv || !kolekcijaId) {
@@ -62,100 +70,82 @@ export class RestMultimedija {
       return;
     }
 
-    const sql = `INSERT INTO multimedija 
-      (naziv, tip, putanja, kolekcijaId, javno, datumDodavanja, autor)
-      VALUES (?, ?, ?, ?, ?, datetime('now'), ?)`;
+    try {
+      const novaMultimedija: Multimedija = {
+        naziv,
+        tip: tip || "",
+        putanja: putanja || "",
+        kolekcijaId,
+        javno: javno ? 1 : 0,
+        autor: autor || "",
+        datumDodavanja: new Date().toISOString()
+      };
 
-    this.db.run(
-      sql,
-      [naziv, tip || "", putanja || "", kolekcijaId, javno ? 1 : 0, autor || ""],
-      function (err) {
-        if (err) return res.status(500).json({ greska: err.message });
-        return res.status(201).json({ id: this.lastID });
-      }
-    );
+      const poruka = await this.mdao.dodajSadrzaj(novaMultimedija);
+      res.status(201).json(poruka);
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
+    }
   }
 
-  // Ažuriranje multimedije
-  putMultimedija(req: Request, res: Response): void {
+  async putMultimedija(req: Request, res: Response): Promise<void> {
+    res.type("application/json");
     const id = Number(req.params["id"]);
     const { naziv, tip, putanja, javno, autor } = req.body as Multimedija;
     const korisnikId = req.session?.korisnik?.id;
     const uloga = req.session?.korisnik?.uloga;
 
-    this.db.get(`SELECT * FROM multimedija WHERE id=?`, [id], async (err, row: Multimedija): Promise<void> => {
-      if (err) {
-        res.status(500).json({ greska: err.message });
-        return;
-      }
+    try {
+      const row = await this.mdao.dajSadrzajPoId(id);
       if (!row) {
         res.status(404).json({ greska: "Multimedija ne postoji" });
         return;
       }
 
-      if (!(await this.jeVlasnik(row.kolekcijaId, korisnikId!)) && uloga !== "moderator" && uloga !== "admin") {
+      if (!(await this.mdao.jeVlasnikKolekcije(row.kolekcijaId, korisnikId!)) && uloga !== "moderator" && uloga !== "admin") {
         res.status(403).json({ greska: "Nemate pravo uređivati ovu multimediju" });
         return;
       }
 
-      const sql = `UPDATE multimedija SET naziv=?, tip=?, putanja=?, javno=?, autor=? WHERE id=?`;
-      this.db.run(
-        sql,
-        [
-          naziv || row.naziv,
-          tip || row.tip,
-          putanja || row.putanja,
-          javno != null ? (javno ? 1 : 0) : row.javno,
-          autor || row.autor,
-          id,
-        ],
-        function (err) {
-          if (err) return res.status(500).json({ greska: err.message });
-          return res.json({ poruka: "Uspješno ažurirano" });
-        }
-      );
-    });
+      const azuriranaMultimedija: Multimedija = {
+        ...row,
+        naziv: naziv || row.naziv,
+        tip: tip || row.tip,
+        putanja: putanja || row.putanja,
+        javno: javno != null ? (javno ? 1 : 0) : (row.javno ?? 0),
+        autor: autor || row.autor || "",
+        id
+      };
+
+      await this.mdao.azurirajSadrzaj(azuriranaMultimedija);
+      res.json({ poruka: "Uspješno ažurirano" });
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
+    }
   }
 
-  // Brisanje multimedije
-  deleteMultimedija(req: Request, res: Response): void {
+  async deleteMultimedija(req: Request, res: Response): Promise<void> {
+    res.type("application/json");
     const id = Number(req.params["id"]);
     const korisnikId = req.session?.korisnik?.id;
     const uloga = req.session?.korisnik?.uloga;
 
-    this.db.get(`SELECT * FROM multimedija WHERE id=?`, [id], async (err, row: Multimedija): Promise<void> => {
-      if (err) {
-        res.status(500).json({ greska: err.message });
-        return;
-      }
+    try {
+      const row = await this.mdao.dajSadrzajPoId(id);
       if (!row) {
         res.status(404).json({ greska: "Multimedija ne postoji" });
         return;
       }
 
-      if (!(await this.jeVlasnik(row.kolekcijaId, korisnikId!)) && uloga !== "moderator" && uloga !== "admin") {
+      if (!(await this.mdao.jeVlasnikKolekcije(row.kolekcijaId, korisnikId!)) && uloga !== "moderator" && uloga !== "admin") {
         res.status(403).json({ greska: "Nemate pravo brisati ovu multimediju" });
         return;
       }
 
-      this.db.run(`DELETE FROM multimedija WHERE id=?`, [id], function (err) {
-        if (err) return res.status(500).json({ greska: err.message });
-        return res.json({ poruka: "Multimedija obrisana" });
-      });
-    });
-  }
-
-  // Pomoćna metoda: provjera vlasništva (async)
-  async jeVlasnik(kolekcijaId: number, korisnikId: number): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      this.db.get(
-        `SELECT * FROM korisnik_kolekcija WHERE kolekcijaId=? AND korisnikId=?`,
-        [kolekcijaId, korisnikId],
-        (err, row) => {
-          if (err) return reject(err);
-          resolve(!!row);
-        }
-      );
-    });
+      await this.mdao.obrisiSadrzaj(id);
+      res.json({ poruka: "Multimedija obrisana" });
+    } catch (err: any) {
+      res.status(500).json({ greska: err.message });
+    }
   }
 }

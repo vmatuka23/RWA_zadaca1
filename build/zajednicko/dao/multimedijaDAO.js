@@ -42,5 +42,20 @@ export default class MultimedijaDAO {
         const sql = `DELETE FROM multimedija WHERE id = ?`;
         return await this.db.ubaciAzurirajPodatke(sql, [id]);
     }
+    async dajJavnoSadrzaje() {
+        const sql = `SELECT * FROM multimedija WHERE javno = 1`;
+        return await this.db.dajPodatke(sql, []);
+    }
+    async dajSadrzajePristupPovezano(korisnikId) {
+        const sql = `SELECT * FROM multimedija WHERE javno = 1 OR kolekcijaId IN (
+            SELECT kolekcijaId FROM korisnik_kolekcija WHERE korisnikId = ?
+        )`;
+        return await this.db.dajPodatke(sql, [korisnikId]);
+    }
+    async jeVlasnikKolekcije(kolekcijaId, korisnikId) {
+        const sql = `SELECT * FROM korisnik_kolekcija WHERE kolekcijaId = ? AND korisnikId = ?`;
+        const rez = await this.db.dajPodatke(sql, [kolekcijaId, korisnikId]);
+        return rez.length > 0;
+    }
 }
 //# sourceMappingURL=multimedijaDAO.js.map

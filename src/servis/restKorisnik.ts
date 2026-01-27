@@ -9,7 +9,7 @@ export class RestKorisnik {
   private kdao;
 
   constructor() {
-      const db = new Baza("podaci/RWA2025vmatuka23.sqlite"); // ili tvoja baza
+      const db = new Baza("podaci/RWA2025vmatuka23.sqlite");
       db.spoji();
       this.kdao = new KorisnikDAO(db);
   }
