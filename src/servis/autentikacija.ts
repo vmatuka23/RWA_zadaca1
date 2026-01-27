@@ -28,7 +28,7 @@ export function provjeriUlogu(dozvoljeneUloge: string[]) {
 }
 
 /**
- * Generiše random sol od 4 karaktera za heširanje lozinke
+ * Generira random sol od 4 karaktera za heširanje lozinke
  */
 export function generirajSol(): string {
     const karakteri = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";

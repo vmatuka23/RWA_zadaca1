@@ -33,3 +33,238 @@ Content-Type: application/json
   "korisnickoIme": "testuser1",
   "lozinka": "wrongpassword"
 }
+
+###############################################
+### MULTIMEDIA API TESTS - PROPER WORKFLOW
+###############################################
+
+### Step 1: Create a collection
+POST http://localhost:12222/api/kolekcije
+Content-Type: application/json
+
+{
+  "naziv": "Test Kolekcija",
+  "opis": "Kolekcija za testiranje multimedije",
+  "javno": true
+}
+
+### Step 2: Get your user ID from profile (copy the id from response)
+GET http://localhost:12222/korisnik
+
+### Step 3: Add yourself to the collection (IMPORTANT: use your user ID from above and collection ID 1)
+POST http://localhost:12222/api/korisnik-kolekcija
+Content-Type: application/json
+
+{
+  "korisnikId": 4,
+  "kolekcijaId": 1
+}
+
+### Get all multimedia (public only if not logged in)
+GET http://localhost:12222/api/multimedija
+
+### Get multimedia by ID - should fail with 404 (non-existent)
+GET http://localhost:12222/api/multimedija/999
+Content-Type: application/json
+
+### Upload multimedia without session (should fail with 401)
+POST http://localhost:12222/api/multimedija
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="datoteka"; filename="test.jpg"
+Content-Type: image/jpeg
+
+<binary image data>
+------WebKitFormBoundary
+Content-Disposition: form-data; name="naziv"
+
+Test Slika
+------WebKitFormBoundary
+Content-Disposition: form-data; name="kolekcijaId"
+
+1
+------WebKitFormBoundary--
+
+### Test 1: Login first
+POST http://localhost:12222/login
+Content-Type: application/json
+
+{
+  "korisnickoIme": "testuser1",
+  "lozinka": "password123"
+}
+
+### Test 2: Upload image - valid (requires session from login above)
+POST http://localhost:12222/api/multimedija
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="datoteka"; filename="test_image.jpg"
+Content-Type: image/jpeg
+
+<binary image data - replace with actual image file>
+------WebKitFormBoundary
+Content-Disposition: form-data; name="naziv"
+
+Moja Testna Slika
+------WebKitFormBoundary
+Content-Disposition: form-data; name="kolekcijaId"
+
+1
+------WebKitFormBoundary
+Content-Disposition: form-data; name="autor"
+
+Test Autor
+------WebKitFormBoundary
+Content-Disposition: form-data; name="javno"
+
+true
+------WebKitFormBoundary--
+
+### Step 4b: Update multimedia (NOW THIS WILL WORK - you're part of collection)
+PUT http://localhost:12222/api/multimedija/8
+Content-Type: application/json
+
+{
+  "naziv": "Ažurirana Testna Slika",
+  "autor": "Novi Autor",
+  "javno": false
+}
+
+### Step 4c: Delete multimedia (NOW THIS WILL WORK - you're part of collection)
+DELETE http://localhost:12222/api/multimedija/5
+Content-Type: application/json
+
+### Test 3: Upload video - valid
+POST http://localhost:12222/api/multimedija
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="datoteka"; filename="test_video.mp4"
+Content-Type: video/mp4
+
+<binary video data - replace with actual video file>
+------WebKitFormBoundary
+Content-Disposition: form-data; name="naziv"
+
+Moj Testni Video
+------WebKitFormBoundary
+Content-Disposition: form-data; name="kolekcijaId"
+
+1
+------WebKitFormBoundary
+Content-Disposition: form-data; name="autor"
+
+Video Autor
+------WebKitFormBoundary--
+
+### Test 4: Upload with invalid file type (should fail with 400)
+POST http://localhost:12222/api/multimedija
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="datoteka"; filename="test_file.txt"
+Content-Type: text/plain
+
+Some text content
+------WebKitFormBoundary
+Content-Disposition: form-data; name="naziv"
+
+Nevaljana Datoteka
+------WebKitFormBoundary
+Content-Disposition: form-data; name="kolekcijaId"
+
+1
+------WebKitFormBoundary--
+
+### Test 5: Upload without required field 'datoteka' (should fail with 400)
+POST http://localhost:12222/api/multimedija
+Content-Type: application/json
+
+{
+  "naziv": "Bez Datoteke",
+  "kolekcijaId": 1
+}
+
+### Test 6: Upload without 'kolekcijaId' (should fail with 400)
+POST http://localhost:12222/api/multimedija
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="datoteka"; filename="test.jpg"
+Content-Type: image/jpeg
+
+<binary image data>
+------WebKitFormBoundary
+Content-Disposition: form-data; name="naziv"
+
+Bez ID-a Kolekcije
+------WebKitFormBoundary--
+
+### Test 7: Get multimedia by ID (after upload)
+GET http://localhost:12222/api/multimedija/7
+Content-Type: application/json
+
+### Test 8: Update multimedia metadata
+PUT http://localhost:12222/api/multimedija/8
+Content-Type: application/json
+
+{
+  "naziv": "Ažurirana Slika",
+  "autor": "Novi Autor",
+  "javno": true
+}
+
+### Test 9: Update non-existent multimedia (should fail with 404)
+PUT http://localhost:12222/api/multimedija/999
+Content-Type: application/json
+
+{
+  "naziv": "Nepostojeća Multimedija"
+}
+
+### Test 10: Delete multimedia
+DELETE http://localhost:12222/api/multimedija/8
+Content-Type: application/json
+
+### Test 11: Delete non-existent multimedia (should fail with 404)
+DELETE http://localhost:12222/api/multimedija/999
+Content-Type: application/json
+
+### Test 12: Delete multimedia without session (should fail with 401)
+POST http://localhost:12222/logout
+Content-Type: application/json
+
+### Test 13: Try delete after logout (should fail with 401)
+DELETE http://localhost:12222/api/multimedija/1
+Content-Type: application/json
+
+###############################################
+### PERMISSION TESTS - Requires setup
+###############################################
+
+### Register second user for permission testing
+POST http://localhost:12222/register
+Content-Type: application/json
+
+{
+  "korisnickoIme": "testuser2",
+  "lozinka": "password456",
+  "email": "test2@example.com",
+  "ime": "Test2",
+  "prezime": "User2"
+}
+
+### Login as second user
+POST http://localhost:12222/login
+Content-Type: application/json
+
+{
+  "korisnickoIme": "testuser2",
+  "lozinka": "password456"
+}
+
+### Test 14: Try to delete multimedia from other user's collection (should fail with 403)
+DELETE http://localhost:12222/api/multimedija/1
+Content-Type: application/json

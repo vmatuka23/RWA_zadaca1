@@ -5,6 +5,38 @@ import {Application} from "express";
 import { RestKolekcija } from "./restKolekcija.js";
 import { RestMultimedija } from "./restMultimedija.js";
 import { RestKorisnikKolekcija } from "./restKorisnik_kolekcija.js";
+import multer from "multer";
+import * as path from "path";
+
+// Konfiguracija multer-a za upload datoteka
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "podaci/multimedija/temp/");
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 1 * 1024 * 1024 // 1 MB limit na razini multer-a
+  },
+  fileFilter: (req, file, cb) => {
+    // Dodatna validacija tipova
+    const dozvoljenaTipoveSlike = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const dozvoljenaTipoviVideo = ["video/mp4", "video/webm", "video/quicktime"];
+    const sviDozvoljenTipovi = [...dozvoljenaTipoveSlike, ...dozvoljenaTipoviVideo];
+    
+    if (sviDozvoljenTipovi.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(null, false);
+    }
+  }
+});
 
 export function pripremiPutanjeResursKorisnikKolekcija(server: Application) {
   let restKolekcijaKorisnik = new RestKorisnikKolekcija();
@@ -28,7 +60,7 @@ export function pripremiPutanjeResursKolekcije(server: Application) {
 export function pripremiPutanjeResursMultimedije(server: Application) {
   let restMultimedija = new RestMultimedija();
   server.get("/api/multimedija", restMultimedija.getMultimedija.bind(restMultimedija));
-  server.post("/api/multimedija", restMultimedija.postMultimedija.bind(restMultimedija));
+  server.post("/api/multimedija", upload.single("datoteka"), restMultimedija.postMultimedija.bind(restMultimedija));
   server.get("/api/multimedija/:id", restMultimedija.getMultimedijaPoId.bind(restMultimedija));
   server.put("/api/multimedija/:id", restMultimedija.putMultimedija.bind(restMultimedija));
   server.delete("/api/multimedija/:id", restMultimedija.deleteMultimedija.bind(restMultimedija));
