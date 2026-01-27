@@ -91,4 +91,21 @@ export default class KorisnikDAO {
         const sql = `UPDATE korisnik SET blokiran = ? WHERE id = ?`;
         return await this.db.ubaciAzurirajPodatke(sql, [blokiran ? 1 : 0, id]);
     }
+
+    async povecajBrojNeuspjesnihPrijava(id: number) {
+    const sql = `
+        UPDATE korisnik 
+        SET brojNeuspjesnihPrijava = brojNeuspjesnihPrijava + 1
+        WHERE id = ?`;
+    return await this.db.ubaciAzurirajPodatke(sql, [id]);
+    }
+
+    async resetirajBrojNeuspjesnihPrijava(id: number) {
+        const sql = `
+            UPDATE korisnik 
+            SET brojNeuspjesnihPrijava = 0
+            WHERE id = ?`;
+        return await this.db.ubaciAzurirajPodatke(sql, [id]);
+    }
+
 }

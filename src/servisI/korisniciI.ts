@@ -6,3 +6,8 @@ export interface KorisnikI {
   lozinka:string | null;
 }
 
+export interface SesijaKorisnikI {
+    id: number;
+    korime: string;
+    uloga: string;
+}

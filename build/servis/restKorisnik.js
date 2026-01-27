@@ -1,4 +1,6 @@
 import { KorisnikDAO } from "./korisnikDAO.js";
+import { Validacija } from "../zajednicko/validacija.js";
+import { kreirajSHA256 } from "../zajednicko/kodovi.js";
 export class RestKorisnik {
     kdao;
     constructor() {
@@ -47,22 +49,57 @@ export class RestKorisnik {
     getKorisnikPrijava(zahtjev, odgovor) {
         odgovor.type("application/json");
         let korime = zahtjev.params["korime"];
-        if (korime == undefined) {
-            odgovor.status(401);
-            odgovor.send(JSON.stringify({ greska: "Krivi podaci!" }));
+        if (!korime || !Validacija.korisnickoIme(korime)) {
+            odgovor.status(400).json({ greska: "Neispravno korisničko ime." });
             return;
         }
-        this.kdao.daj(korime).then((korisnik) => {
-            console.log(korisnik);
-            console.log(zahtjev.body);
-            if (korisnik != null && korisnik.lozinka == zahtjev.body.lozinka) {
-                korisnik.lozinka = null;
-                odgovor.send(JSON.stringify(korisnik));
+        if (!Validacija.lozinka(zahtjev.body.lozinka)) {
+            odgovor.status(400).json({
+                greska: "Lozinka mora imati najmanje 6 znakova, 1 slovo i 1 broj."
+            });
+            return;
+        }
+        this.kdao.daj(korime).then(async (korisnik) => {
+            if (korisnik == null) {
+                odgovor.status(401).json({ greska: "Krivi podaci!" });
+                return;
             }
-            else {
-                odgovor.status(401);
-                odgovor.send(JSON.stringify({ greska: "Krivi podaci!" }));
+            // provjeri je li korisnik blokiran
+            if (korisnik.blokiran) {
+                odgovor.status(403).json({ greska: "Račun je blokiran" });
+                return;
             }
+            // hash iz baze: koristi kreirajSHA256 sa solju
+            const sol = korisnik.sol;
+            const hashUneseneLozinke = kreirajSHA256(zahtjev.body.lozinka, sol);
+            if (hashUneseneLozinke !== korisnik.lozinka) {
+                // pogrešna lozinka
+                await this.kdao.povecajBrojNeuspjesnihPrijava(korisnik.id);
+                // provjeri je li dostignut limit 3
+                const noviBroj = (korisnik.brojNeuspjesnihPrijava || 0) + 1;
+                if (noviBroj >= 3) {
+                    await this.kdao.postaviBlokiran(korisnik.id, true);
+                    odgovor.status(403).json({ greska: "Račun je blokiran nakon 3 neuspješne prijave" });
+                    return;
+                }
+                odgovor.status(401).json({ greska: "Krivi podaci!" });
+                return;
+            }
+            await this.kdao.resetirajBrojNeuspjesnihPrijava(korisnik.id);
+            // SPREMANJE SESIJE
+            let sesijaKorisnik = {
+                id: korisnik.id,
+                korime: korisnik.korime,
+                uloga: korisnik.uloga || "korisnik"
+            };
+            zahtjev.session.korisnik = sesijaKorisnik;
+            odgovor.status(200).json({
+                poruka: "Prijava uspješna",
+                korisnik: {
+                    korime: sesijaKorisnik.korime,
+                    uloga: sesijaKorisnik.uloga
+                }
+            });
         });
     }
     ;

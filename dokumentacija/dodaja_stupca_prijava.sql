@@ -1,0 +1,2 @@
+ALTER TABLE korisnik
+ADD COLUMN brojNeuspjesnihPrijava INTEGER NOT NULL DEFAULT 0;

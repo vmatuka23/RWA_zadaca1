@@ -1,26 +1,30 @@
-import { KorisnikI } from "../servisI/korisniciI.js";
-import { KorisnikDAO } from "./korisnikDAO.js";
 import { Request, Response } from "express";
+import Baza from "../zajednicko/sqliteBaza.js";
+import KorisnikDAO, { Korisnik } from "../zajednicko/dao/korisnikDAO.js";
+import { Validacija } from "../zajednicko/validacija.js";
+import { SesijaKorisnikI } from "../servisI/korisniciI.js";
+import { kreirajSHA256, dajNasumceBroj } from "../zajednicko/kodovi.js";
 
 export class RestKorisnik {
   private kdao;
 
   constructor() {
-    this.kdao = new KorisnikDAO();
+      const db = new Baza("podaci/RWA2025vmatuka23.sqlite"); // ili tvoja baza
+      db.spoji();
+      this.kdao = new KorisnikDAO(db);
   }
 
-  getKorisnici(zahtjev: Request, odgovor: Response) {
+ async getKorisnici(zahtjev: Request, odgovor: Response) {
     odgovor.type("application/json");
-    this.kdao.dajSve().then((korisnici: Array<KorisnikI>) => {
-      console.log(korisnici);
-      odgovor.send(JSON.stringify(korisnici));
-    });
-  }
+    const korisnici = await this.kdao.dajSveKorisnike();
+    odgovor.send(JSON.stringify(korisnici));
+}
 
-  postKorisnici(zahtjev: Request, odgovor: Response) {
+
+  async postKorisnici(zahtjev: Request, odgovor: Response) {
     odgovor.type("application/json");
-    let podaci = zahtjev.body;
-    let poruka = this.kdao.dodaj(podaci);
+    let podaci = zahtjev.body as Korisnik;
+    let poruka = await this.kdao.dodajKorisnika(podaci);
     odgovor.send(JSON.stringify(poruka));
   };
 
@@ -45,7 +49,7 @@ export class RestKorisnik {
       odgovor.send({ greska: "Nepostojeće korime" });
       return;
     }
-    let korisnik = await this.kdao.daj(korime); 
+    let korisnik = await this.kdao.dajKorisnikaPoKorisnickomImenu(korime); 
     console.log(korisnik);
     odgovor.send(JSON.stringify(korisnik));
   };
@@ -53,24 +57,71 @@ export class RestKorisnik {
   getKorisnikPrijava(zahtjev: Request, odgovor: Response) {
     odgovor.type("application/json");
     let korime = zahtjev.params["korime"] as string;
-    if (korime == undefined) {
-      odgovor.status(401);
-      odgovor.send(JSON.stringify({ greska: "Krivi podaci!" }));
-      return;
+    if (!korime || !Validacija.korisnickoIme(korime)) {
+    odgovor.status(400).json({ greska: "Neispravno korisničko ime." });
+    return;
     }
 
-    this.kdao.daj(korime).then((korisnik:KorisnikI|null) => {
-      console.log(korisnik);
-      console.log(zahtjev.body);
-      if (korisnik != null && korisnik.lozinka == zahtjev.body.lozinka){
-        korisnik.lozinka = null
-        odgovor.send(JSON.stringify(korisnik));
-      } else {
-        odgovor.status(401);
-        odgovor.send(JSON.stringify({ greska: "Krivi podaci!" }));
+    if (!Validacija.lozinka(zahtjev.body.lozinka)) {
+        odgovor.status(400).json({
+            greska: "Lozinka mora imati najmanje 6 znakova, 1 slovo i 1 broj."
+        });
+        return;
+    }
+
+    this.kdao.dajKorisnikaPoKorisnickomImenu(korime).then(async (korisnik: Korisnik | null) => {
+      if (korisnik == null) {
+          odgovor.status(401).json({ greska: "Krivi podaci!" });
+          return;
       }
-    });
-  };
+
+      // provjeri je li korisnik blokiran
+      if ((korisnik as any).blokiran) {
+          odgovor.status(403).json({ greska: "Račun je blokiran" });
+          return;
+      }
+
+      // hash iz baze: koristi kreirajSHA256 sa solju
+      const sol = korisnik.sol as string;
+      const hashUneseneLozinke = kreirajSHA256(zahtjev.body.lozinka, sol);
+
+      if (hashUneseneLozinke !== korisnik.lozinkaHash) {
+          // pogrešna lozinka
+          await this.kdao.povecajBrojNeuspjesnihPrijava(korisnik.id!);
+
+          // provjeri je li dostignut limit 3
+          const korisnikPoId = await this.kdao.dajKorisnikaPoId(korisnik.id!);
+          const noviBroj = ((korisnikPoId?.blokiran || 0) as number) + 1;
+          if (noviBroj >= 3) {
+              await this.kdao.postaviBlokiran(korisnik.id!, true);
+              odgovor.status(403).json({ greska: "Račun je blokiran nakon 3 neuspješne prijave" });
+              return;
+          }
+
+          odgovor.status(401).json({ greska: "Krivi podaci!" });
+          return;
+      }
+
+      await this.kdao.resetirajBrojNeuspjesnihPrijava(korisnik.id!);
+
+      // SPREMANJE SESIJE
+      let sesijaKorisnik: SesijaKorisnikI = {
+          id: korisnik.id!,
+          korime: korisnik.korisnickoIme,
+          uloga: korisnik.uloga || "korisnik"
+      };
+      zahtjev.session.korisnik = sesijaKorisnik;
+
+      odgovor.status(200).json({
+          poruka: "Prijava uspješna",
+          korisnik: {
+              korisnickoIme: sesijaKorisnik.korime,
+              uloga: sesijaKorisnik.uloga
+          }
+      });
+  });
+};
+
   postKorisnik(zahtjev: Request, odgovor: Response) {
     odgovor.type("application/json");
     odgovor.status(405);
@@ -78,14 +129,17 @@ export class RestKorisnik {
     odgovor.send(JSON.stringify(poruka));
   };
 
-  deleteKorisnik(zahtjev: Request, odgovor: Response) {
+  async deleteKorisnik(zahtjev: Request, odgovor: Response) {
     odgovor.type("application/json");
     let korime = zahtjev.params["korime"] as string;
     if(zahtjev.params["korime"]!=undefined) {
-      this.kdao.obrisi(korime);
-      let poruka = { ok: "obrisan" };
-      odgovor.send(JSON.stringify(poruka));
-      return;
+      const korisnik = await this.kdao.dajKorisnikaPoKorisnickomImenu(korime);
+      if (korisnik && korisnik.id) {
+        await this.kdao.obrisiKorisnika(korisnik.id);
+        let poruka = { ok: "obrisan" };
+        odgovor.send(JSON.stringify(poruka));
+        return;
+      }
     }
 
     odgovor.status(407);
@@ -93,7 +147,7 @@ export class RestKorisnik {
     odgovor.send(JSON.stringify(poruka));
   };
 
-  putKorisnik(zahtjev: Request, odgovor: Response) {
+  async putKorisnik(zahtjev: Request, odgovor: Response) {
     odgovor.type("application/json");
     let korime = zahtjev.params["korime"] as string;
     if (korime == undefined) {
@@ -101,9 +155,15 @@ export class RestKorisnik {
       odgovor.send(JSON.stringify({ greska: "Krivi podaci!" }));
       return;
     }
-    let podaci = zahtjev.body;
-    let poruka = this.kdao.azuriraj(korime, podaci)
-    odgovor.send(JSON.stringify(poruka));
+    const korisnik = await this.kdao.dajKorisnikaPoKorisnickomImenu(korime);
+    if (korisnik && korisnik.id) {
+      const podaci: Korisnik = { ...korisnik, ...zahtjev.body };
+      let poruka = await this.kdao.azurirajKorisnika(podaci)
+      odgovor.send(JSON.stringify(poruka));
+    } else {
+      odgovor.status(404);
+      odgovor.send(JSON.stringify({ greska: "Korisnik nije pronađen" }));
+    }
   };
 
 }
