@@ -1,3 +1,4 @@
+import { dajNasumceBroj } from "../zajednicko/kodovi.js";
 export function provjeriAutentikaciju(req, res, next) {
     if (req.session && req.session.korisnik) {
         next();
@@ -17,5 +18,16 @@ export function provjeriUlogu(dozvoljeneUloge) {
             res.status(403).json({ greska: "Nemate pravo pristupa" });
         }
     };
+}
+/**
+ * Generiše random sol od 4 karaktera za heširanje lozinke
+ */
+export function generirajSol() {
+    const karakteri = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let sol = "";
+    for (let i = 0; i < 4; i++) {
+        sol += karakteri.charAt(dajNasumceBroj(0, karakteri.length));
+    }
+    return sol;
 }
 //# sourceMappingURL=autentikacija.js.map

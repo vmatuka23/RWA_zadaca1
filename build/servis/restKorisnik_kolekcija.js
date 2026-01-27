@@ -10,7 +10,7 @@ export class RestKorisnikKolekcija {
     // POST /api/korisnik-kolekcija
     async postVeza(req, res) {
         if (!req.session?.korisnik) {
-            res.status(401).json({ greska: "Niste prijavljeni" });
+            res.status(401).json({ greska: "Morate biti prijavljeni da dodate vezu" });
             return;
         }
         const { korisnikId, kolekcijaId } = req.body;
@@ -29,7 +29,7 @@ export class RestKorisnikKolekcija {
     // DELETE /api/korisnik-kolekcija
     async deleteVeza(req, res) {
         if (!req.session?.korisnik) {
-            res.status(401).json({ greska: "Niste prijavljeni" });
+            res.status(401).json({ greska: "Morate biti prijavljeni da izbrišete vezu" });
             return;
         }
         const { korisnikId, kolekcijaId } = req.body;
@@ -42,15 +42,23 @@ export class RestKorisnikKolekcija {
     }
     // GET /api/korisnik-kolekcija/korisnik/:id
     async getKolekcijeZaKorisnika(req, res) {
+        if (!req.session?.korisnik) {
+            res.status(401).json({ greska: "Morate biti prijavljeni da vidite vezu" });
+            return;
+        }
         const korisnikId = Number(req.params["id"]);
         const podaci = await this.dao.dajSveKolekcijeZaKorisnika(korisnikId);
         res.json(podaci);
     }
     // GET /api/korisnik-kolekcija/kolekcija/:id
     async getKorisniciZaKolekciju(req, res) {
+        if (!req.session?.korisnik) {
+            res.status(401).json({ greska: "Morate biti prijavljeni da vidite vezu" });
+            return;
+        }
         const kolekcijaId = Number(req.params["id"]);
         const podaci = await this.dao.dajSveKorisnikeZaKolekciju(kolekcijaId);
         res.json(podaci);
     }
 }
-//# sourceMappingURL=restKolekcija_korisnik.js.map
+//# sourceMappingURL=restKorisnik_kolekcija.js.map

@@ -1,45 +1,24 @@
-import cors from "cors";
 import express, { Application } from "express";
 import { dajPort } from "../zajednicko/esmPomocnik.js";
 import { Konfiguracija } from "../zajednicko/konfiguracija.js";
 import { pripremiPutanjeResursTMDB, pripremiPutanjeResursKorisnika, pripremiPutanjeResursKolekcije, pripremiPutanjeResursMultimedije, pripremiPutanjeResursKorisnikKolekcija} from "./servis.js";
-import session from "express-session";
-import cookieParser from "cookie-parser";
+import { Aplikacija } from "../aplikacija/aplikacija.js";
+import { AplikacijaRute } from "../aplikacija/aplikacijaRute.js";
 
 const server: Application = express();
 
 function inicijalizirajPostavkeServera(server: Application) {
-    server.use(express.json());
-    server.use(express.urlencoded({ extended: true }));
-
-    server.use(cors({
-        origin: (origin, povratniPoziv) => {
-            console.log(origin);
-            if (!origin || origin.startsWith('http://spider.foi.hr:') ||
-                origin.startsWith('http://localhost:')) {
-                povratniPoziv(null, true); // Dozvoljeno
-            } else {
-                povratniPoziv(new Error('Nije dozvoljeno zbog CORS'));
-            }
-        },
-        optionsSuccessStatus: 200
-    }));
+    // Koristi Aplikacija klasu za inicijalizaciju parsera i CORS-a
+    const app = new Aplikacija(server, new Konfiguracija());
+    app.inicijalizirajParsere();
+    app.inicijalizirajCORS();
 }
 
 function inicijalizirajSesiju(server: Application, konf: Konfiguracija) {
-    server.use(cookieParser());
-
-    // session middleware
-    server.use(session({
-        secret: konf.dajKonf().tajniKljucSesija,
-        resave: false,
-        saveUninitialized: false, // Ne kreiraj prazne sesije
-        cookie: {
-            httpOnly: true,
-            secure: false, // true ako je HTTPS, na localhost treba false
-            maxAge: 1000 * 60 * 60 // 1 sat
-        }
-    }));
+    // Koristi Aplikacija klasu za inicijalizaciju sesije
+    const app = new Aplikacija(server, konf);
+    app.inicijalizirajSesiju();
+    app.inicijalizirajStaticneDatoteke();
 }
 
 async function inicijalizirajKonfiguraciju(): Promise<Konfiguracija> {
@@ -49,11 +28,17 @@ async function inicijalizirajKonfiguraciju(): Promise<Konfiguracija> {
 }
 
 function pripremiPutanjeServera(server: Application, konf: Konfiguracija) {
+    // Pripremi autentifikacijske rute
+    const appRute = new AplikacijaRute();
+    appRute.pripremiRute(server);
+    
+    // Pripremi ostale resurse
     pripremiPutanjeResursTMDB(server, konf);
     pripremiPutanjeResursKorisnika(server, konf);
     pripremiPutanjeResursKolekcije(server);
     pripremiPutanjeResursMultimedije(server);
     pripremiPutanjeResursKorisnikKolekcija(server);
+    
     server.use((zahtjev, odgovor) => {
         odgovor.status(404);
         var poruka = { greska: "nepostojeći resurs" };

@@ -2,6 +2,14 @@ import { RestKorisnik } from "./restKorisnik.js";
 import { RestTMDB } from "./restTMDB.js";
 import { RestKolekcija } from "./restKolekcija.js";
 import { RestMultimedija } from "./restMultimedija.js";
+import { RestKorisnikKolekcija } from "./restKorisnik_kolekcija.js";
+export function pripremiPutanjeResursKorisnikKolekcija(server) {
+    let restKolekcijaKorisnik = new RestKorisnikKolekcija();
+    server.post("/api/korisnik-kolekcija", restKolekcijaKorisnik.postVeza.bind(restKolekcijaKorisnik));
+    server.delete("/api/korisnik-kolekcija", restKolekcijaKorisnik.deleteVeza.bind(restKolekcijaKorisnik));
+    server.get("/api/korisnik-kolekcija/korisnik/:id", restKolekcijaKorisnik.getKolekcijeZaKorisnika.bind(restKolekcijaKorisnik));
+    server.get("/api/korisnik-kolekcija/kolekcija/:id", restKolekcijaKorisnik.getKorisniciZaKolekciju.bind(restKolekcijaKorisnik));
+}
 export function pripremiPutanjeResursKolekcije(server) {
     let restKolekcija = new RestKolekcija();
     server.get("/api/kolekcije", restKolekcija.getKolekcije.bind(restKolekcija));

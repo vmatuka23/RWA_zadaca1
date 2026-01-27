@@ -1,0 +1,35 @@
+### Register a new user
+POST http://localhost:12222/register
+Content-Type: application/json
+
+{
+  "korisnickoIme": "testuser1",
+  "lozinka": "password123",
+  "email": "test@example.com",
+  "ime": "Test",
+  "prezime": "User"
+}
+
+### Login
+POST http://localhost:12222/login
+Content-Type: application/json
+
+{
+  "korisnickoIme": "testuser1",
+  "lozinka": "password123"
+}
+
+### Get current user (requires session from login)
+GET http://localhost:12222/korisnik
+
+### Logout
+POST http://localhost:12222/logout
+
+### Try login with wrong password (should block after 3 attempts)
+POST http://localhost:12222/login
+Content-Type: application/json
+
+{
+  "korisnickoIme": "testuser1",
+  "lozinka": "wrongpassword"
+}

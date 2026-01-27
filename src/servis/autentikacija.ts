@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { dajNasumceBroj } from "../zajednicko/kodovi.js";
 
 export function provjeriAutentikaciju(
     req: Request,
@@ -24,4 +25,16 @@ export function provjeriUlogu(dozvoljeneUloge: string[]) {
             res.status(403).json({ greska: "Nemate pravo pristupa" });
         }
     };
+}
+
+/**
+ * Generiše random sol od 4 karaktera za heširanje lozinke
+ */
+export function generirajSol(): string {
+    const karakteri = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let sol = "";
+    for (let i = 0; i < 4; i++) {
+        sol += karakteri.charAt(dajNasumceBroj(0, karakteri.length));
+    }
+    return sol;
 }
