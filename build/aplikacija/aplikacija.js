@@ -61,6 +61,7 @@ export class Aplikacija {
         this.server.use(express.static("src/aplikacija/css"));
         this.server.use(express.static("src/aplikacija/js"));
         this.server.use(express.static("dokumentacija"));
+        this.server.use("/podaci", express.static("podaci"));
     }
     /**
      * Inicijalizira sve potrebne komponente aplikacije

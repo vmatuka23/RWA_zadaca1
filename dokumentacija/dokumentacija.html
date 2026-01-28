@@ -36,11 +36,16 @@
         <h2>Informacije o autoru</h2>
 
         <article id="karticaAutor">
-          <img src="#" alt="Profilna slika autora" id="slikaAutora" />
+          <img
+            src="/podaci/profilna.png"
+            alt="Profilna slika autora Vigo Matuka"
+            id="slikaAutora"
+            style="max-width: 200px; height: auto"
+          />
           <div id="podaciAutora">
-            <h3 id="imeAutora">Ime i prezime autora</h3>
+            <h3 id="imeAutora">Vigo Matuka</h3>
             <p id="emailAutora">
-              Email: <a href="mailto:email@foi.hr">email@foi.hr</a>
+              Email: <a href="mailto:vmatuka23@foi.hr">vmatuka23@foi.hr</a>
             </p>
           </div>
         </article>
@@ -51,19 +56,27 @@
         <h2>ERA Model</h2>
 
         <div id="kontejnerSlikaERAModela">
-          <!-- PLACEHOLDER ZA SLIKE ERA MODELA -->
-          <figure id="slikaERA1">
-            <a href="#" id="linkSlikaERA1">
-              <img src="#" alt="ERA Model slika 1" class="eraModelSlika" />
+          <figure id="slikaERA">
+            <a
+              href="/podaci/ERA_model.png"
+              target="_blank"
+              title="Klikni za puni prikaz"
+            >
+              <img
+                src="/podaci/ERA_model.png"
+                alt="ERA model baze podataka"
+                class="eraModelSlika"
+                style="
+                  max-width: 250px;
+                  width: 100%;
+                  height: auto;
+                  cursor: pointer;
+                  border: 1px solid #ccc;
+                  padding: 5px;
+                "
+              />
             </a>
-            <figcaption>ERA Model - Kompletan prikaz</figcaption>
-          </figure>
-
-          <figure id="slikaERA2">
-            <a href="#" id="linkSlikaERA2">
-              <img src="#" alt="ERA Model slika 2" class="eraModelSlika" />
-            </a>
-            <figcaption>ERA Model - Entiteti i relacije</figcaption>
+            <figcaption>ERA model: klikni na sliku za puni prikaz</figcaption>
           </figure>
         </div>
       </section>
@@ -87,19 +100,19 @@
               <td class="endpoint">/api/kolekcije</td>
               <td class="metoda">GET</td>
               <td class="opis">Dohvati sve kolekcije</td>
-              <td class="implementirano">Ne</td>
+              <td class="implementirano">Da</td>
             </tr>
             <tr id="redEndpoint2">
               <td class="endpoint">/api/kolekcije</td>
               <td class="metoda">POST</td>
               <td class="opis">Kreiraj novu kolekciju</td>
-              <td class="implementirano">Ne</td>
+              <td class="implementirano">Da</td>
             </tr>
             <tr id="redEndpoint3">
               <td class="endpoint">/api/korisnici</td>
               <td class="metoda">GET</td>
               <td class="opis">Dohvati sve korisnike</td>
-              <td class="implementirano">Ne</td>
+              <td class="implementirano">Da</td>
             </tr>
           </tbody>
         </table>
@@ -122,22 +135,22 @@
             <tr id="redZahtjev1">
               <td class="uloga">Gost</td>
               <td class="funkcionalnost">Pregled javnih kolekcija</td>
-              <td class="statusImplementacije">Ne</td>
+              <td class="statusImplementacije">Da</td>
             </tr>
             <tr id="redZahtjev2">
               <td class="uloga">Korisnik</td>
               <td class="funkcionalnost">Upravljanje vlastitim kolekcijama</td>
-              <td class="statusImplementacije">Ne</td>
+              <td class="statusImplementacije">Da</td>
             </tr>
             <tr id="redZahtjev3">
               <td class="uloga">Moderator</td>
               <td class="funkcionalnost">Kreiranje kolekcija</td>
-              <td class="statusImplementacije">Ne</td>
+              <td class="statusImplementacije">Da</td>
             </tr>
             <tr id="redZahtjev4">
               <td class="uloga">Administrator</td>
               <td class="funkcionalnost">Upravljanje korisnicima</td>
-              <td class="statusImplementacije">Ne</td>
+              <td class="statusImplementacije">Da</td>
             </tr>
           </tbody>
         </table>
@@ -150,25 +163,13 @@
         <article id="napomeneIzdanje">
           <h3>Poznati problemi</h3>
           <ul id="listaProblema">
-            <li id="problem1">Placeholder za prvi poznati problem</li>
-            <li id="problem2">Placeholder za drugi poznati problem</li>
+            <li id="problem1">
+              Na web stranici moderator ne može pristupiti kolekcijama
+            </li>
+            <li id="problem2">
+              Nije moguće dodavati multimedijske sadržaje na web stranici
+            </li>
           </ul>
-        </article>
-
-        <article id="napomeneOgranicenja">
-          <h3>Ograničenja</h3>
-          <ul id="listaOgranicenja">
-            <li id="ogranicenje1">Placeholder za prvo ograničenje</li>
-            <li id="ogranicenje2">Placeholder za drugo ograničenje</li>
-          </ul>
-        </article>
-
-        <article id="napomeStrukture">
-          <h3>Napomene o strukturi aplikacije</h3>
-          <p id="tekstNapomeStrukture">
-            Ovo je mjesta gdje se mogu dodati dodatne napomene o strukturi,
-            korištenoj tehnologiji i drugim važnim aspektima implementacije.
-          </p>
         </article>
       </section>
     </main>
