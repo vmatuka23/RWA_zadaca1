@@ -15,7 +15,7 @@ function inicijalizirajSesiju(server, konf) {
     // Koristi Aplikacija klasu za inicijalizaciju sesije
     const app = new Aplikacija(server, konf);
     app.inicijalizirajSesiju();
-    app.inicijalizirajStaticneDatoteke();
+    // NE inicijalizuraj statičke datoteke ovdje - trebale bi biti NAKON ruta!
 }
 async function inicijalizirajKonfiguraciju() {
     let konf = new Konfiguracija();
@@ -23,15 +23,19 @@ async function inicijalizirajKonfiguraciju() {
     return konf;
 }
 function pripremiPutanjeServera(server, konf) {
-    // Pripremi autentifikacijske rute
+    // Pripremi autentifikacijske rute PRVO
     const appRute = new AplikacijaRute();
     appRute.pripremiRute(server);
-    // Pripremi ostale resurse
+    // Pripremi ostale API resurse
     pripremiPutanjeResursTMDB(server, konf);
     pripremiPutanjeResursKorisnika(server, konf);
     pripremiPutanjeResursKolekcije(server);
     pripremiPutanjeResursMultimedije(server);
     pripremiPutanjeResursKorisnikKolekcija(server);
+    // Sada inicijalizuraj statičke datoteke (HTML, CSS, JS)
+    const app = new Aplikacija(server, konf);
+    app.inicijalizirajStaticneDatoteke();
+    // 404 handler na kraju
     server.use((zahtjev, odgovor) => {
         odgovor.status(404);
         var poruka = { greska: "nepostojeći resurs" };

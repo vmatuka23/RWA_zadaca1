@@ -1,8 +1,10 @@
 import { Request, Response, Application } from "express";
-import { provjeriAutentikaciju, generirajSol as generirajSolAut } from "../servis/autentikacija.js";
+import { provjeriAutentikaciju, generirajSol as generirajSolAut, provjeriUlogu } from "../servis/autentikacija.js";
 import Baza from "../zajednicko/sqliteBaza.js";
 import KorisnikDAO, { Korisnik } from "../zajednicko/dao/korisnikDAO.js";
 import { kreirajSHA256 } from "../zajednicko/kodovi.js";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 
 export class AplikacijaRute {
     private kdao: KorisnikDAO;
@@ -11,6 +13,17 @@ export class AplikacijaRute {
         const db = new Baza("podaci/RWA2025vmatuka23.sqlite");
         db.spoji();
         this.kdao = new KorisnikDAO(db);
+    }
+
+    /**
+     * Učitaj HTML datoteku sa putanje
+     */
+    private ucitajHTML(putanja: string): string {
+        try {
+            return readFileSync(resolve(putanja), 'utf-8');
+        } catch (err) {
+            return "<h1>Greška 404 - Stranica nije pronađena</h1>";
+        }
     }
 
     /**
@@ -175,17 +188,88 @@ export class AplikacijaRute {
         odgovor.json(zahtjev.session.korisnik);
     }
 
+    // =================== PAGE RENDERING ROUTES ===================
+
+    /**
+     * GET / - Početna stranica (javna)
+     */
+    private prikazIndex(zahtjev: Request, odgovor: Response): void {
+        const html = this.ucitajHTML("src/aplikacija/html/index.html");
+        odgovor.send(html);
+    }
+
+    /**
+     * GET /prijava - Stranica za prijavu (javna)
+     */
+    private prikazPrijava(zahtjev: Request, odgovor: Response): void {
+        const html = this.ucitajHTML("src/aplikacija/html/prijava.html");
+        odgovor.send(html);
+    }
+
+    /**
+     * GET /registracija - Stranica za registraciju (javna)
+     */
+    private prikazRegistracija(zahtjev: Request, odgovor: Response): void {
+        const html = this.ucitajHTML("src/aplikacija/html/registracija.html");
+        odgovor.send(html);
+    }
+
+    /**
+     * GET /kolekcije - Stranica za upravljanje kolekcijama (zaštićena - registrirani korisnici)
+     */
+    private prikazKolekcije(zahtjev: Request, odgovor: Response): void {
+        const html = this.ucitajHTML("src/aplikacija/html/kolekcije.html");
+        odgovor.send(html);
+    }
+
+    /**
+     * GET /sadrzaj - Stranica za multimedijski sadržaj (zaštićena - registrirani korisnici)
+     */
+    private prikazSadrzaj(zahtjev: Request, odgovor: Response): void {
+        const html = this.ucitajHTML("src/aplikacija/html/sadrzaj.html");
+        odgovor.send(html);
+    }
+
+    /**
+     * GET /moderator - Stranica za upravljanje kolekcijama (zaštićena - moderatori i admini)
+     */
+    private prikazModerator(zahtjev: Request, odgovor: Response): void {
+        const html = this.ucitajHTML("src/aplikacija/html/moderator.html");
+        odgovor.send(html);
+    }
+
+    /**
+     * GET /korisnici - Stranica za upravljanje korisnicima (zaštićena - samo admini)
+     */
+    private prikazKorisnici(zahtjev: Request, odgovor: Response): void {
+        const html = this.ucitajHTML("src/aplikacija/html/korisnici.html");
+        odgovor.send(html);
+    }
+
     /**
      * Registriraj sve rute
      */
     public pripremiRute(server: Application): void {
-        // Javne rute
+        // ===== JAVNE RUTE =====
+        server.get("/", (req: Request, res: Response) => this.prikazIndex(req, res));
+        server.get("/prijava", (req: Request, res: Response) => this.prikazPrijava(req, res));
+        server.get("/registracija", (req: Request, res: Response) => this.prikazRegistracija(req, res));
+
+        // ===== AUTENTIFIKACIJSKE RUTE =====
         server.post("/login", (req: Request, res: Response) => this.login(req, res));
         server.post("/register", (req: Request, res: Response) => this.register(req, res));
         server.post("/logout", (req: Request, res: Response) => this.logout(req, res));
 
-        // Zaštićene rute
+        // ===== ZAŠTIĆENE RUTE - REGISTRIRANI KORISNICI =====
+        server.get("/kolekcije", provjeriAutentikaciju, (req: Request, res: Response) => this.prikazKolekcije(req, res));
+        server.get("/sadrzaj", provjeriAutentikaciju, (req: Request, res: Response) => this.prikazSadrzaj(req, res));
         server.get("/korisnik", provjeriAutentikaciju, (req: Request, res: Response) => this.dajKorisnika(req, res));
+
+        // ===== ZAŠTIĆENE RUTE - MODERATOR =====
+        server.get("/moderator", provjeriAutentikaciju, provjeriUlogu(["moderator", "admin"]), (req: Request, res: Response) => this.prikazModerator(req, res));
+
+        // ===== ZAŠTIĆENE RUTE - ADMIN =====
+        server.get("/korisnici", provjeriAutentikaciju, provjeriUlogu(["admin"]), (req: Request, res: Response) => this.prikazKorisnici(req, res));
     }
 }
 

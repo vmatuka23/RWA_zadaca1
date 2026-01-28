@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="hr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dokumentacija</title>
+  </head>
+  <body>
+    <!-- HEADER I NAVIGACIJA -->
+    <header id="zaglavlje">
+      <nav id="glavniMeni">
+        <ul id="menuItems">
+          <li><a href="index.html">Početna</a></li>
+          <li><a href="kolekcije.html">Moje kolekcije</a></li>
+          <li><a href="sadrzaj.html">Multimedijski sadržaj</a></li>
+          <li><a href="moderator.html">Upravljanje kolekcijama</a></li>
+          <li><a href="korisnici.html">Upravljanje korisnicima</a></li>
+          <li><a href="dokumentacija.html">Dokumentacija</a></li>
+        </ul>
+      </nav>
+
+      <!-- AUTENTIFIKACIJA SEKCIJA -->
+      <div id="autentifikacijaKontejner">
+        <a href="prijava.html" id="gumbPrijava">Prijava</a>
+        <a href="registracija.html" id="gumbRegistracija">Registracija</a>
+        <a href="#" id="gumbOdjava">Odjava</a>
+      </div>
+    </header>
+
+    <!-- GLAVNI SADRŽAJ -->
+    <main id="glavniSadrzaj">
+      <h1>Dokumentacija projektа</h1>
+
+      <!-- SEKCIJA ZA INFORMACIJE O AUTORU -->
+      <section id="sekcijаAutor">
+        <h2>Informacije o autoru</h2>
+
+        <article id="karticaAutor">
+          <img src="#" alt="Profilna slika autora" id="slikaAutora" />
+          <div id="podaciAutora">
+            <h3 id="imeAutora">Ime i prezime autora</h3>
+            <p id="emailAutora">
+              Email: <a href="mailto:email@foi.hr">email@foi.hr</a>
+            </p>
+          </div>
+        </article>
+      </section>
+
+      <!-- SEKCIJA ZA ERA MODEL -->
+      <section id="sekcijаERAModel">
+        <h2>ERA Model</h2>
+
+        <div id="kontejnerSlikaERAModela">
+          <!-- PLACEHOLDER ZA SLIKE ERA MODELA -->
+          <figure id="slikaERA1">
+            <a href="#" id="linkSlikaERA1">
+              <img src="#" alt="ERA Model slika 1" class="eraModelSlika" />
+            </a>
+            <figcaption>ERA Model - Kompletan prikaz</figcaption>
+          </figure>
+
+          <figure id="slikaERA2">
+            <a href="#" id="linkSlikaERA2">
+              <img src="#" alt="ERA Model slika 2" class="eraModelSlika" />
+            </a>
+            <figcaption>ERA Model - Entiteti i relacije</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- SEKCIJA ZA SPECIFIKACIJU SERVISNOG SUČELJA -->
+      <section id="sekcijаSpecifikacija">
+        <h2>Specifikacija REST API-ja</h2>
+
+        <table id="tabelaEndpointa">
+          <thead>
+            <tr>
+              <th id="naslov-endpoint">Endpoint</th>
+              <th id="naslov-metoda">Metoda</th>
+              <th id="naslov-opis">Opis</th>
+              <th id="naslov-implementirano">Implementirano</th>
+            </tr>
+          </thead>
+          <tbody id="tijeloTabelaEndpointa">
+            <!-- PLACEHOLDER ZA ENDPOINTE -->
+            <tr id="redEndpoint1">
+              <td class="endpoint">/api/kolekcije</td>
+              <td class="metoda">GET</td>
+              <td class="opis">Dohvati sve kolekcije</td>
+              <td class="implementirano">Ne</td>
+            </tr>
+            <tr id="redEndpoint2">
+              <td class="endpoint">/api/kolekcije</td>
+              <td class="metoda">POST</td>
+              <td class="opis">Kreiraj novu kolekciju</td>
+              <td class="implementirano">Ne</td>
+            </tr>
+            <tr id="redEndpoint3">
+              <td class="endpoint">/api/korisnici</td>
+              <td class="metoda">GET</td>
+              <td class="opis">Dohvati sve korisnike</td>
+              <td class="implementirano">Ne</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- SEKCIJA ZA STATUS FUNKCIONALNIH ZAHTJEVA -->
+      <section id="sekcijаFunkcionalniZahtjevi">
+        <h2>Status funkcionalnih zahtjeva</h2>
+
+        <table id="tabelaFunkcionalniZahtjevi">
+          <thead>
+            <tr>
+              <th id="naslov-uloga">Uloga</th>
+              <th id="naslov-funkcionalnost">Funkcionalnost</th>
+              <th id="naslov-statusImplementacije">Implementirano</th>
+            </tr>
+          </thead>
+          <tbody id="tijeloTabelaFunkcionalnost">
+            <!-- PLACEHOLDER ZA ZAHTJEVE -->
+            <tr id="redZahtjev1">
+              <td class="uloga">Gost</td>
+              <td class="funkcionalnost">Pregled javnih kolekcija</td>
+              <td class="statusImplementacije">Ne</td>
+            </tr>
+            <tr id="redZahtjev2">
+              <td class="uloga">Korisnik</td>
+              <td class="funkcionalnost">Upravljanje vlastitim kolekcijama</td>
+              <td class="statusImplementacije">Ne</td>
+            </tr>
+            <tr id="redZahtjev3">
+              <td class="uloga">Moderator</td>
+              <td class="funkcionalnost">Kreiranje kolekcija</td>
+              <td class="statusImplementacije">Ne</td>
+            </tr>
+            <tr id="redZahtjev4">
+              <td class="uloga">Administrator</td>
+              <td class="funkcionalnost">Upravljanje korisnicima</td>
+              <td class="statusImplementacije">Ne</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- SEKCIJA ZA NAPOMENE I POZNATE PROBLEME -->
+      <section id="sekcijаNapomene">
+        <h2>Napomene i poznati problemi</h2>
+
+        <article id="napomeneIzdanje">
+          <h3>Poznati problemi</h3>
+          <ul id="listaProblema">
+            <li id="problem1">Placeholder za prvi poznati problem</li>
+            <li id="problem2">Placeholder za drugi poznati problem</li>
+          </ul>
+        </article>
+
+        <article id="napomeneOgranicenja">
+          <h3>Ograničenja</h3>
+          <ul id="listaOgranicenja">
+            <li id="ogranicenje1">Placeholder za prvo ograničenje</li>
+            <li id="ogranicenje2">Placeholder za drugo ograničenje</li>
+          </ul>
+        </article>
+
+        <article id="napomeStrukture">
+          <h3>Napomene o strukturi aplikacije</h3>
+          <p id="tekstNapomeStrukture">
+            Ovo je mjesta gdje se mogu dodati dodatne napomene o strukturi,
+            korištenoj tehnologiji i drugim važnim aspektima implementacije.
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer id="podnozje">
+      <p>&copy; 2024 Multimedijska zbirka. Sva prava zadržana.</p>
+    </footer>
+    <script src="../src/aplikacija/js/zajednicko.js"></script>
+  </body>
+</html>

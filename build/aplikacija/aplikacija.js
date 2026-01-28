@@ -59,6 +59,7 @@ export class Aplikacija {
         // Postavi HTML i CSS fajlove
         this.server.use(express.static("src/aplikacija/html"));
         this.server.use(express.static("src/aplikacija/css"));
+        this.server.use(express.static("dokumentacija"));
     }
     /**
      * Inicijalizira sve potrebne komponente aplikacije
