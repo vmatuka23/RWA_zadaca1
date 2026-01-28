@@ -1,155 +1,179 @@
-/**
- * Zajedničke funkcije za sve HTML stranice
- */
+const Zajednicko = (function () {
+  let trenutniKorisnik = null;
 
-/**
- * Prikaži/sakrij gumbe za autentifikaciju ovisno o sesiji
- */
-async function ažurirajAutentifikaciju() {
-  try {
-    const odgovor = await fetch("/korisnik");
+  async function dohvatiKorisnika() {
+    try {
+      const odgovor = await fetch("/korisnik");
+      if (odgovor.ok) {
+        trenutniKorisnik = await odgovor.json();
+        return trenutniKorisnik;
+      }
+      trenutniKorisnik = null;
+      return null;
+    } catch (greska) {
+      obradiGresku(greska);
+      return null;
+    }
+  }
 
-    if (odgovor.ok) {
-      // Korisnik je prijavljen
-      const korisnik = await odgovor.json();
-      const gumbPrijava = document.getElementById("gumbPrijava");
-      const gumbRegistracija = document.getElementById("gumbRegistracija");
-      const gumbOdjava = document.getElementById("gumbOdjava");
+  function dohvatiTrenutnogKorisnika() {
+    return trenutniKorisnik;
+  }
 
-      if (gumbPrijava) gumbPrijava.style.display = "none";
-      if (gumbRegistracija) gumbRegistracija.style.display = "none";
-      if (gumbOdjava) {
-        gumbOdjava.style.display = "inline-block";
-        gumbOdjava.addEventListener("click", (e) => {
-          e.preventDefault();
-          odjava();
-        });
+  async function odjava() {
+    try {
+      const odgovor = await fetch("/logout", { method: "POST" });
+      if (odgovor.ok) {
+        trenutniKorisnik = null;
+        window.location.href = "index.html";
+      }
+    } catch (greska) {
+      obradiGresku(greska);
+    }
+  }
+
+  function prikaziNavigaciju(uloga) {
+    const gostElementi = document.querySelectorAll('[data-uloga="gost"]');
+    const korisnikElementi = document.querySelectorAll(
+      '[data-uloga="korisnik"]',
+    );
+    const moderatorElementi = document.querySelectorAll(
+      '[data-uloga="moderator"]',
+    );
+    const adminElementi = document.querySelectorAll('[data-uloga="admin"]');
+    const prijavljenElementi = document.querySelectorAll(
+      '[data-uloga="prijavljen"]',
+    );
+
+    gostElementi.forEach((el) => (el.style.display = uloga ? "none" : ""));
+    prijavljenElementi.forEach(
+      (el) => (el.style.display = uloga ? "" : "none"),
+    );
+    korisnikElementi.forEach((el) => (el.style.display = uloga ? "" : "none"));
+
+    const jeModerator = uloga === "moderator" || uloga === "admin";
+    moderatorElementi.forEach(
+      (el) => (el.style.display = jeModerator ? "" : "none"),
+    );
+
+    adminElementi.forEach(
+      (el) => (el.style.display = uloga === "admin" ? "" : "none"),
+    );
+  }
+
+  function provjeriPristup(dozvoljeneUloge) {
+    const korisnik = dohvatiTrenutnogKorisnika();
+
+    if (dozvoljeneUloge.includes("gost") && !korisnik) {
+      return true;
+    }
+
+    if (!korisnik) {
+      prikaziPorukuIPrsmjeri(
+        "Morate biti prijavljeni za pristup ovoj stranici.",
+      );
+      return false;
+    }
+
+    if (dozvoljeneUloge.includes(korisnik.uloga)) {
+      return true;
+    }
+
+    prikaziPorukuIPrsmjeri("Nemate ovlasti za pristup ovoj stranici.");
+    return false;
+  }
+
+  function prikaziPorukuIPrsmjeri(poruka) {
+    alert(poruka);
+    window.location.href = "index.html";
+  }
+
+  function obradiGresku(greska, statusKod = null) {
+    console.error(greska);
+
+    if (statusKod === 401) {
+      prikaziPorukuIPrsmjeri("Sesija je istekla. Molimo prijavite se ponovno.");
+      return;
+    }
+
+    if (statusKod === 403) {
+      prikaziPorukuIPrsmjeri("Nemate ovlasti za ovu radnju.");
+      return;
+    }
+
+    if (statusKod === 404) {
+      prikaziPoruku("Traženi resurs nije pronađen.", "greska");
+      return;
+    }
+
+    prikaziPoruku("Došlo je do greške. Pokušajte ponovno.", "greska");
+  }
+
+  function prikaziPoruku(tekst, tip = "info") {
+    const postojecaPoruka = document.querySelector(".poruka-obavijest");
+    if (postojecaPoruka) {
+      postojecaPoruka.remove();
+    }
+
+    const poruka = document.createElement("div");
+    poruka.className = `poruka-obavijest poruka-${tip}`;
+    poruka.textContent = tekst;
+    document.body.insertBefore(poruka, document.body.firstChild);
+
+    setTimeout(() => poruka.remove(), 5000);
+  }
+
+  async function posaljiZahtjev(url, opcije = {}) {
+    try {
+      const odgovor = await fetch(url, {
+        ...opcije,
+        headers: {
+          "Content-Type": "application/json",
+          ...opcije.headers,
+        },
+      });
+
+      if (!odgovor.ok) {
+        obradiGresku(new Error(`HTTP ${odgovor.status}`), odgovor.status);
+        return null;
       }
 
-      // Prikaži/sakrij stranice ovisno o ulozi
-      ažurirajVidljivostMenija(korisnik.uloga);
-    } else {
-      // Korisnik nije prijavljen
-      const gumbPrijava = document.getElementById("gumbPrijava");
-      const gumbRegistracija = document.getElementById("gumbRegistracija");
-      const gumbOdjava = document.getElementById("gumbOdjava");
+      const contentType = odgovor.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        return await odgovor.json();
+      }
 
-      if (gumbPrijava) gumbPrijava.style.display = "inline-block";
-      if (gumbRegistracija) gumbRegistracija.style.display = "inline-block";
-      if (gumbOdjava) gumbOdjava.style.display = "none";
-
-      // Sakri zaštićene stranice
-      sakrijZastiteneStranice();
+      return await odgovor.text();
+    } catch (greska) {
+      obradiGresku(greska);
+      return null;
     }
-  } catch (err) {
-    console.error("Greška pri provjeri autentifikacije:", err);
-    sakrijZastiteneStranice();
-  }
-}
-
-/**
- * Ažuriraj vidljivost stavki menija ovisno o ulozi
- */
-function ažurirajVidljivostMenija(uloga) {
-  const stavkaModerator = document.querySelector(
-    'a[href="moderator.html"]',
-  )?.parentElement;
-  const stavkaKorisnici = document.querySelector(
-    'a[href="korisnici.html"]',
-  )?.parentElement;
-
-  if (stavkaModerator) {
-    stavkaModerator.style.display =
-      uloga === "moderator" || uloga === "admin" ? "list-item" : "none";
   }
 
-  if (stavkaKorisnici) {
-    stavkaKorisnici.style.display = uloga === "admin" ? "list-item" : "none";
-  }
-}
+  async function inicijaliziraj() {
+    await dohvatiKorisnika();
+    const korisnik = dohvatiTrenutnogKorisnika();
+    prikaziNavigaciju(korisnik ? korisnik.uloga : null);
 
-/**
- * Sakrij zaštićene stranice koje zahtijevaju prijavu
- */
-function sakrijZastiteneStranice() {
-  const zastiteneMeni = document.querySelectorAll(
-    'a[href="kolekcije.html"], a[href="sadrzaj.html"], a[href="moderator.html"], a[href="korisnici.html"]',
-  );
-  zastiteneMeni.forEach((meni) => {
-    meni.parentElement.style.display = "none";
-  });
-}
-
-/**
- * Odjava korisnika
- */
-async function odjava() {
-  try {
-    const odgovor = await fetch("/logout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (odgovor.ok) {
-      window.location.href = "/";
-    } else {
-      alert("Greška pri odjavi");
-    }
-  } catch (err) {
-    console.error("Greška pri odjavi:", err);
-    alert("Greška pri odjavi");
-  }
-}
-
-/**
- * Prikaži poruku greške
- */
-function prikaziGresku(poruka, elementId = null) {
-  if (elementId) {
-    const element = document.getElementById(elementId);
-    if (element) {
-      element.textContent = poruka;
-      element.style.display = "block";
-    }
-  } else {
-    alert(poruka);
-  }
-}
-
-/**
- * Sakrij poruku greške
- */
-function sakrijGresku(elementId) {
-  const element = document.getElementById(elementId);
-  if (element) {
-    element.textContent = "";
-    element.style.display = "none";
-  }
-}
-
-/**
- * Preusmjeri na stranicu ako nije prijavljen
- */
-function preusmjeriAkoNijeUlogiran(stranica = "/prijava") {
-  const meniKolekcije = document.querySelector('a[href="kolekcije.html"]');
-
-  if (
-    meniKolekcije &&
-    !document.body.innerHTML.includes('data-prijavljen="true"')
-  ) {
-    // Ako je stranica zaštićena i korisnik nije prijavljen
-    if (
-      window.location.pathname !== "/" &&
-      window.location.pathname !== "/prijava" &&
-      window.location.pathname !== "/registracija"
-    ) {
-      // Provjeri je li korisnik prijavljen putem API-ja
-      fetch("/korisnik").catch(() => {
-        window.location.href = stranica;
+    const gumbOdjava = document.getElementById("gumb-odjava");
+    if (gumbOdjava) {
+      gumbOdjava.addEventListener("click", async (e) => {
+        e.preventDefault();
+        await odjava();
       });
     }
-  }
-}
 
-// Pozovi funkciju pri učitavanju stranice
-document.addEventListener("DOMContentLoaded", ažurirajAutentifikaciju);
+    return korisnik;
+  }
+
+  return {
+    inicijaliziraj,
+    dohvatiKorisnika,
+    dohvatiTrenutnogKorisnika,
+    odjava,
+    provjeriPristup,
+    obradiGresku,
+    prikaziPoruku,
+    posaljiZahtjev,
+  };
+})();

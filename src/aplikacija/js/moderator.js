@@ -1,250 +1,152 @@
-/**
- * Moderator stranica - moderator.html
- */
+document.addEventListener("DOMContentLoaded", async () => {
+  const korisnik = await Zajednicko.inicijaliziraj();
 
-/**
- * Pripremi formu za kreiranje kolekcije
- */
-function pripremiFormaKreiranjaKolekcije() {
-  const forma = document.getElementById("formaKreiranjaKolekcije");
-  if (!forma) return;
-
-  forma.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const nazivKolekcije = document
-      .getElementById("nazivKolekcije")
-      .value.trim();
-    const opisKolekcije = document.getElementById("opisKolekcije").value.trim();
-    const vidljivostKolekcije = document.getElementById(
-      "vidljivostKolekcije",
-    ).value;
-
-    if (!nazivKolekcije) {
-      alert("Molimo unesite naziv kolekcije");
-      return;
-    }
-
-    try {
-      const odgovor = await fetch("/api/kolekcije", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          naziv: nazivKolekcije,
-          opis: opisKolekcije,
-          javna: vidljivostKolekcije === "javna",
-        }),
-      });
-
-      if (odgovor.ok) {
-        alert("Kolekcija uspješno kreirana");
-        forma.reset();
-        ucitajKolekcijeModeratora();
-      } else {
-        alert("Greška pri kreiranju kolekcije");
-      }
-    } catch (err) {
-      console.error("Greška pri kreiranju:", err);
-      alert("Greška pri kreiranju kolekcije");
-    }
-  });
-}
-
-/**
- * Učitaj sve kolekcije za moderatora
- */
-async function ucitajKolekcijeModeratora() {
-  try {
-    const odgovor = await fetch("/api/kolekcije/sve");
-
-    if (!odgovor.ok) {
-      console.error("Greška pri učitavanju kolekcija");
-      return;
-    }
-
-    const kolekcije = await odgovor.json();
-    prikaziKolekcijeModeratora(kolekcije);
-  } catch (err) {
-    console.error("Greška pri učitavanju kolekcija:", err);
-  }
-}
-
-/**
- * Prikaži kolekcije u tablici
- */
-function prikaziKolekcijeModeratora(kolekcije) {
-  const tablica = document.getElementById("tijeloTabelaKolekcija");
-  if (!tablica) return;
-
-  tablica.innerHTML = "";
-
-  if (kolekcije.length === 0) {
-    tablica.innerHTML = '<tr><td colspan="3">Nema kolekcija</td></tr>';
+  if (!Zajednicko.provjeriPristup(["moderator", "admin"])) {
     return;
   }
 
-  kolekcije.forEach((kolekcija, index) => {
-    const red = document.createElement("tr");
-    red.id = `stavkaKolekcije${index + 1}`;
+  const formaKolekcija = document.getElementById("formaKreiranjaKolekcije");
+  const tabelaKolekcija = document.getElementById("tabelaKolekcija");
+  const listaKolekcija = tabelaKolekcija
+    ? tabelaKolekcija.querySelector("tbody")
+    : null;
+  const formaDodjela = document.getElementById("formaDodjeleKorisnika");
 
-    const korisniciHTML = (kolekcija.korisnici || [])
-      .map((k) => `<li>${k.korisnickoIme}</li>`)
-      .join("");
+  if (formaKolekcija) {
+    formaKolekcija.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await kreirajKolekciju();
+    });
+  }
 
-    red.innerHTML = `
-            <td class="naziv">${kolekcija.naziv}</td>
-            <td class="korisnici" id="ćeliaKorisnici${index + 1}">
-                <ul>${korisniciHTML || "<li>Nema dodijeljenih korisnika</li>"}</ul>
-            </td>
-            <td class="akcije">
-                <button class="gumbUrediBrisanje" onclick="urediKolekciju(${kolekcija.id})">Uredi</button>
-                <button class="gumbBrisanje" onclick="obrisiKolekciju(${kolekcija.id})">Obriši</button>
-            </td>
-        `;
+  async function kreirajKolekciju() {
+    const naziv = document.getElementById("nazivKolekcije").value.trim();
+    const opis = document.getElementById("opisKolekcije").value.trim();
+    const vidljivost = document.getElementById("vidljivostKolekcije").value;
+    const javno = vidljivost === "javna";
 
-    tablica.appendChild(red);
-  });
-}
+    if (!naziv) {
+      Zajednicko.prikaziPoruku("Unesite naziv kolekcije.", "greska");
+      return;
+    }
 
-/**
- * Obriši kolekciju
- */
-async function obrisiKolekciju(kolekcijaId) {
-  if (!confirm("Jeste li sigurni da želite obrisati ovu kolekciju?")) return;
-
-  try {
-    const odgovor = await fetch(`/api/kolekcije/${kolekcijaId}`, {
-      method: "DELETE",
+    const rezultat = await Zajednicko.posaljiZahtjev("/api/kolekcije", {
+      method: "POST",
+      body: JSON.stringify({ naziv, opis, javno }),
     });
 
-    if (odgovor.ok) {
-      ucitajKolekcijeModeratora();
-    } else {
-      alert("Greška pri brisanju");
+    if (rezultat) {
+      Zajednicko.prikaziPoruku("Kolekcija je kreirana.", "uspjeh");
+      formaKolekcija.reset();
+      await ucitajKolekcije();
     }
-  } catch (err) {
-    console.error("Greška pri brisanju:", err);
   }
-}
 
-/**
- * Uredi kolekciju
- */
-async function urediKolekciju(kolekcijaId) {
-  alert("Funkcionalnost za uređivanje će biti implementirana");
-}
+  async function ucitajKolekcije() {
+    const podaci = await Zajednicko.posaljiZahtjev("/api/kolekcije");
 
-/**
- * Učitaj korisnike za dodjelu
- */
-async function ucitajKorisnike() {
-  try {
-    const odgovor = await fetch("/api/korisnici");
+    if (!podaci) return;
 
-    if (!odgovor.ok) {
-      console.error("Greška pri učitavanju korisnika");
+    const kolekcije = podaci.kolekcije || podaci;
+    prikaziKolekcije(kolekcije);
+    popuniSelectKolekcija(kolekcije);
+  }
+
+  function prikaziKolekcije(kolekcije) {
+    if (!listaKolekcija) return;
+
+    listaKolekcija.innerHTML = "";
+
+    if (!kolekcije || kolekcije.length === 0) {
+      listaKolekcija.innerHTML =
+        "<tr><td colspan='3'>Nema kolekcija.</td></tr>";
       return;
     }
 
-    const korisnici = await odgovor.json();
-    popuniOdabirKorisnika(korisnici);
-  } catch (err) {
-    console.error("Greška pri učitavanju korisnika:", err);
+    kolekcije.forEach((kolekcija) => {
+      const red = document.createElement("tr");
+      red.innerHTML = `
+                <td>${kolekcija.naziv}</td>
+                <td>${kolekcija.javno ? "Javna" : "Privatna"}</td>
+                <td>
+                  <button class="gumbUredi" data-id="${kolekcija.id}">Uredi</button>
+                  <button class="gumbBrisi" data-id="${kolekcija.id}">Obriši</button>
+                </td>
+            `;
+      listaKolekcija.appendChild(red);
+    });
   }
-}
 
-/**
- * Popuni odabir korisnika
- */
-function popuniOdabirKorisnika(korisnici) {
-  const odabir = document.getElementById("odabirKorisnika");
-  if (!odabir) return;
+  function popuniSelectKolekcija(kolekcije) {
+    const selectKolekcija = document.getElementById("odabirKolekcije");
+    if (!selectKolekcija) return;
 
-  korisnici.forEach((korisnik) => {
-    const opcija = document.createElement("option");
-    opcija.value = korisnik.id;
-    opcija.textContent = korisnik.korisnickoIme;
-    odabir.appendChild(opcija);
-  });
-}
+    selectKolekcija.innerHTML = '<option value="">Odaberi kolekciju</option>';
 
-/**
- * Učitaj kolekcije za dodjelu
- */
-async function ucitajKolekcijezaDodjelu() {
-  try {
-    const odgovor = await fetch("/api/kolekcije/sve");
-
-    if (!odgovor.ok) {
-      return;
-    }
-
-    const kolekcije = await odgovor.json();
-    popuniOdabirKolekcije(kolekcije);
-  } catch (err) {
-    console.error("Greška pri učitavanju kolekcija:", err);
+    kolekcije.forEach((kolekcija) => {
+      const opcija = document.createElement("option");
+      opcija.value = kolekcija.id;
+      opcija.textContent = kolekcija.naziv;
+      selectKolekcija.appendChild(opcija);
+    });
   }
-}
 
-/**
- * Popuni odabir kolekcija
- */
-function popuniOdabirKolekcije(kolekcije) {
-  const odabir = document.getElementById("odabirKolekcije");
-  if (!odabir) return;
+  async function ucitajKorisnike() {
+    const korisnici = await Zajednicko.posaljiZahtjev("/api/korisnici");
 
-  kolekcije.forEach((kolekcija) => {
-    const opcija = document.createElement("option");
-    opcija.value = kolekcija.id;
-    opcija.textContent = kolekcija.naziv;
-    odabir.appendChild(opcija);
-  });
-}
+    if (!korisnici) return;
 
-/**
- * Pripremi formu za dodjelu korisnika
- */
-function pripremiFormaDodjeleKorisnika() {
-  const forma = document.getElementById("formaDodjeleKorisnika");
-  if (!forma) return;
+    popuniSelectKorisnika(korisnici);
+  }
 
-  forma.addEventListener("submit", async (e) => {
-    e.preventDefault();
+  function popuniSelectKorisnika(korisnici) {
+    const selectKorisnik = document.getElementById("odabirKorisnika");
+    if (!selectKorisnik) return;
 
-    const korisnikId = document.getElementById("odabirKorisnika").value;
+    selectKorisnik.innerHTML = '<option value="">Odaberi korisnika</option>';
+
+    korisnici.forEach((korisnik) => {
+      const opcija = document.createElement("option");
+      opcija.value = korisnik.id;
+      opcija.textContent = `${korisnik.korisnickoIme} (${korisnik.ime} ${korisnik.prezime})`;
+      selectKorisnik.appendChild(opcija);
+    });
+  }
+
+  if (formaDodjela) {
+    formaDodjela.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await dodjeliKorisnika();
+    });
+  }
+
+  async function dodjeliKorisnika() {
     const kolekcijaId = document.getElementById("odabirKolekcije").value;
+    const korisnikId = document.getElementById("odabirKorisnika").value;
 
-    if (!korisnikId || !kolekcijaId) {
-      alert("Molimo odaberite korisnika i kolekciju");
+    if (!kolekcijaId || !korisnikId) {
+      Zajednicko.prikaziPoruku("Odaberite kolekciju i korisnika.", "greska");
       return;
     }
 
-    try {
-      const odgovor = await fetch("/api/korisnici-kolekcije", {
+    const rezultat = await Zajednicko.posaljiZahtjev(
+      `/api/korisnik-kolekcija`,
+      {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ korisnikId, kolekcijaId }),
-      });
+        body: JSON.stringify({
+          kolekcijaId: parseInt(kolekcijaId),
+          korisnikId: parseInt(korisnikId),
+        }),
+      },
+    );
 
-      if (odgovor.ok) {
-        alert("Korisnik uspješno dodijeljen kolekciji");
-        forma.reset();
-        ucitajKolekcijeModeratora();
-      } else {
-        alert("Greška pri dodjeljivanju");
-      }
-    } catch (err) {
-      console.error("Greška pri dodjeljivanju:", err);
-      alert("Greška pri dodjeljivanju");
+    if (rezultat) {
+      Zajednicko.prikaziPoruku("Korisnik je dodan u kolekciju.", "uspjeh");
+      formaDodjela.reset();
+      await ucitajKolekcije();
     }
-  });
-}
+  }
 
-// Inicijalizacija pri učitavanju
-document.addEventListener("DOMContentLoaded", () => {
-  pripremiFormaKreiranjaKolekcije();
-  pripremiFormaDodjeleKorisnika();
-  ucitajKolekcijeModeratora();
-  ucitajKorisnike();
-  ucitajKolekcijezaDodjelu();
+  await ucitajKolekcije();
+  await ucitajKorisnike();
 });

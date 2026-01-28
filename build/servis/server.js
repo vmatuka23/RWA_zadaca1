@@ -15,7 +15,6 @@ function inicijalizirajSesiju(server, konf) {
     // Koristi Aplikacija klasu za inicijalizaciju sesije
     const app = new Aplikacija(server, konf);
     app.inicijalizirajSesiju();
-    // NE inicijalizuraj statičke datoteke ovdje - trebale bi biti NAKON ruta!
 }
 async function inicijalizirajKonfiguraciju() {
     let konf = new Konfiguracija();

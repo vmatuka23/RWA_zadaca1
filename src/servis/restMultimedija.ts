@@ -250,23 +250,25 @@ export class RestMultimedija {
   /**
    * GET /api/multimedija
    * Dohvati sve multimedije dostupne korisniku
+   * Optional query param: kolekcijaId - filter by collection
    */
   async getMultimedija(req: Request, res: Response) {
     res.type("application/json");
     const uloga = req.session?.korisnik?.uloga;
     const korisnikId = req.session?.korisnik?.id;
+    const kolekcijaIdParam = req.query['kolekcijaId'] as string | undefined;
+    const kolekcijaId = kolekcijaIdParam ? parseInt(kolekcijaIdParam) : undefined;
     
     try {
       let multimedije: Multimedija[];
       
-      if (uloga === "gost") {
-        // Gosti mogu vidjeti samo javnu multimediju
+      if (kolekcijaId) {
+        multimedije = await this.mdao.dajSveSadrzaje(kolekcijaId);
+      } else if (!uloga || uloga === "gost") {
         multimedije = await this.mdao.dajJavnoSadrzaje();
       } else if (uloga === "korisnik") {
-        // Korisnici mogu vidjeti javnu multimediju i onu iz svojih kolekcija
         multimedije = await this.mdao.dajSadrzajePristupPovezano(korisnikId!);
       } else {
-        // Admin i moderator mogu vidjeti sve
         multimedije = await this.mdao.dajSveSadrzaje();
       }
       

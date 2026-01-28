@@ -1,183 +1,233 @@
-/**
- * Multimedijski sadržaj stranica - sadrzaj.html
- */
+document.addEventListener("DOMContentLoaded", async () => {
+  const korisnik = await Zajednicko.inicijaliziraj();
 
-/**
- * Pripremi formu za TMDB pretragu
- */
-function pripremiFormaPretrageTMDB() {
-  const forma = document.getElementById("formaPretrageTMDB");
-  if (!forma) return;
-
-  forma.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const unosPretrage = document.getElementById("unosPretrage").value.trim();
-
-    if (!unosPretrage) {
-      alert("Molimo unesite nešto za pretragu");
-      return;
-    }
-
-    await pretragaTMDB(unosPretrage);
-  });
-}
-
-/**
- * Provetraga TMDB-a
- */
-async function pretragaTMDB(uzorak) {
-  try {
-    const odgovor = await fetch(
-      `/api/tmdb/search?q=${encodeURIComponent(uzorak)}`,
-    );
-
-    if (!odgovor.ok) {
-      alert("Greška pri pretrazi");
-      return;
-    }
-
-    const rezultati = await odgovor.json();
-    prikaziRezultatePretrage(rezultati);
-  } catch (err) {
-    console.error("Greška pri pretrazi TMDB-a:", err);
-    alert("Greška pri pretrazi");
-  }
-}
-
-/**
- * Prikaži rezultate pretrage
- */
-function prikaziRezultatePretrage(rezultati) {
-  const kontejner = document.getElementById("kontejnerRezultataPretrage");
-  if (!kontejner) return;
-
-  kontejner.innerHTML = "";
-
-  if (!rezultati || rezultati.length === 0) {
-    kontejner.innerHTML = "<p>Nema rezultata</p>";
+  if (!Zajednicko.provjeriPristup(["korisnik", "moderator", "admin"])) {
     return;
   }
 
-  rezultati.forEach((rezultat, index) => {
-    const article = document.createElement("article");
-    article.className = "stavkaRezultataPretrage";
-    article.id = `rezultatPretrage${index + 1}`;
+  const formaPretraga = document.getElementById("formaPretrageTMDB");
+  const rezultatiPretraga = document.getElementById(
+    "kontejnerRezultataPretrage",
+  );
+  const formaUpload = document.getElementById("formaUcitavanja");
 
-    article.innerHTML = `
-            <img src="${rezultat.slika || "#"}" alt="Slika rezultata" class="slikaRezultata">
-            <h3 class="nazivRezultata">${rezultat.naziv}</h3>
-            ${rezultat.video ? `<a href="${rezultat.video}" class="linkVideoYoutube" target="_blank">Gledaj video</a>` : ""}
-            <button class="gumbDodajUKolekciju" onclick="prikaziDialogKolekcija(${rezultat.id})">Dodaj u kolekciju</button>
-        `;
+  let selectKolekcija = document.getElementById("odabirKolekcije");
+  if (!selectKolekcija) {
+    selectKolekcija = document.createElement("select");
+    selectKolekcija.id = "odabirKolekcije";
+    const sekcijaTMDB = document.getElementById("sekcijaPretrageTMDB");
+    if (sekcijaTMDB) {
+      const wrapper = document.createElement("div");
+      wrapper.id = "grupaOdabirKolekcije";
+      const label = document.createElement("label");
+      label.setAttribute("for", "odabirKolekcije");
+      label.textContent = "Odaberi kolekciju za dodavanje:";
+      wrapper.appendChild(label);
+      wrapper.appendChild(selectKolekcija);
+      sekcijaTMDB.insertBefore(wrapper, sekcijaTMDB.firstChild.nextSibling);
+    }
+  }
 
-    kontejner.appendChild(article);
-  });
-}
+  const MAKSIMALNA_VELICINA_DATOTEKE = 1 * 1024 * 1024;
 
-/**
- * Prikaži dialog za dodavanje u kolekciju
- */
-async function prikaziDialogKolekcija(multimedijaId) {
-  try {
-    const odgovor = await fetch("/api/kolekcije");
+  async function ucitajKolekcije() {
+    const podaci = await Zajednicko.posaljiZahtjev("/api/kolekcije");
 
-    if (!odgovor.ok) {
-      alert("Greška pri učitavanju kolekcija");
+    if (!podaci || !selectKolekcija) return;
+
+    const kolekcije = podaci.kolekcije || podaci;
+    selectKolekcija.innerHTML = '<option value="">Odaberi kolekciju</option>';
+
+    kolekcije.forEach((kolekcija) => {
+      const opcija = document.createElement("option");
+      opcija.value = kolekcija.id;
+      opcija.textContent = kolekcija.naziv;
+      selectKolekcija.appendChild(opcija);
+    });
+  }
+
+  if (formaPretraga) {
+    formaPretraga.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await pretraziTMDB();
+    });
+  }
+
+  async function pretraziTMDB() {
+    const upit = document.getElementById("unosPretrage").value.trim();
+
+    if (!upit) {
+      Zajednicko.prikaziPoruku("Unesite pojam za pretragu.", "greska");
       return;
     }
 
-    const kolekcije = await odgovor.json();
-
-    const odabirKolekcije = prompt(
-      "Odaberi kolekciju za dodavanje:\n" +
-        kolekcije.map((k, i) => `${i + 1}. ${k.naziv}`).join("\n") +
-        "\n\nUnesite broj:",
+    const podaci = await Zajednicko.posaljiZahtjev(
+      `/api/tmdb/filmovi?trazi=${encodeURIComponent(upit)}&stranica=1`,
     );
 
-    if (odabirKolekcije) {
-      const index = parseInt(odabirKolekcije) - 1;
-      if (index >= 0 && index < kolekcije.length) {
-        await dodajUKolekciju(multimedijaId, kolekcije[index].id);
-      }
-    }
-  } catch (err) {
-    console.error("Greška pri preuzimanju kolekcija:", err);
-  }
-}
+    if (!podaci) return;
 
-/**
- * Dodaj multimediju u kolekciju
- */
-async function dodajUKolekciju(multimedijaId, kolekcijaId) {
-  try {
-    const odgovor = await fetch(`/api/kolekcije/${kolekcijaId}/multimedija`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ multimedijaId }),
+    prikaziRezultatePretraga(podaci.results);
+  }
+
+  function prikaziRezultatePretraga(rezultati) {
+    rezultatiPretraga.innerHTML = "";
+
+    if (!rezultati || rezultati.length === 0) {
+      rezultatiPretraga.innerHTML = "<p>Nema rezultata pretrage.</p>";
+      return;
+    }
+
+    rezultati.forEach((rezultat) => {
+      const kartica = kreirajKarticuRezultata(rezultat);
+      rezultatiPretraga.appendChild(kartica);
     });
-
-    if (odgovor.ok) {
-      alert("Datoteka dodana u kolekciju");
-    } else {
-      alert("Greška pri dodavanju u kolekciju");
-    }
-  } catch (err) {
-    console.error("Greška pri dodavanju:", err);
   }
-}
 
-/**
- * Pripremi formu za učitavanje multimedije
- */
-function pripremiFormaUcitavanja() {
-  const forma = document.getElementById("formaUcitavanja");
-  if (!forma) return;
+  function kreirajKarticuRezultata(rezultat) {
+    const kartica = document.createElement("div");
+    kartica.className = "kartica-rezultata stavkaRezultataPretrage";
 
-  forma.addEventListener("submit", async (e) => {
-    e.preventDefault();
+    const naslov = document.createElement("h3");
+    naslov.className = "nazivRezultata";
+    naslov.textContent = rezultat.title || rezultat.original_title || "";
 
-    const datoteka = document.getElementById("ucitavanjeDatoteke").files[0];
-    const naslov = document.getElementById("naslovMultimedije").value.trim();
+    const opis = document.createElement("p");
+    opis.textContent = rezultat.overview
+      ? rezultat.overview.substring(0, 150) + "..."
+      : "";
+
+    kartica.appendChild(naslov);
+    kartica.appendChild(opis);
+
+    if (rezultat.poster_path) {
+      const kontejnerSlika = document.createElement("div");
+      kontejnerSlika.className = "kontejner-slika";
+
+      const slikaEl = document.createElement("img");
+      slikaEl.src = `https://image.tmdb.org/t/p/w200${rezultat.poster_path}`;
+      slikaEl.alt = rezultat.title || "";
+      slikaEl.className = "slikaRezultata";
+
+      const gumbDodaj = document.createElement("button");
+      gumbDodaj.className = "gumbDodajUKolekciju";
+      gumbDodaj.textContent = "Dodaj u kolekciju";
+      gumbDodaj.addEventListener("click", () =>
+        dodajUKolekciju(
+          "slika",
+          `https://image.tmdb.org/t/p/original${rezultat.poster_path}`,
+          rezultat.title,
+        ),
+      );
+
+      kontejnerSlika.appendChild(slikaEl);
+      kontejnerSlika.appendChild(gumbDodaj);
+      kartica.appendChild(kontejnerSlika);
+    }
+
+    return kartica;
+  }
+
+  async function dodajUKolekciju(tip, url, naziv) {
+    const kolekcijaId = selectKolekcija.value;
+
+    if (!kolekcijaId) {
+      Zajednicko.prikaziPoruku("Molimo odaberite kolekciju.", "greska");
+      return;
+    }
+
+    const rezultat = await Zajednicko.posaljiZahtjev(
+      `/api/kolekcije/${kolekcijaId}/sadrzaj`,
+      {
+        method: "POST",
+        body: JSON.stringify({ tip, url, naziv }),
+      },
+    );
+
+    if (rezultat) {
+      Zajednicko.prikaziPoruku("Sadržaj je dodan u kolekciju.", "uspjeh");
+    }
+  }
+
+  if (formaUpload) {
+    formaUpload.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await uploadMedija();
+    });
+  }
+
+  async function uploadMedija() {
+    const kolekcijaId = selectKolekcija.value;
+    const datotekaInput = document.getElementById("ucitavanjeDatoteke");
+    const datoteka = datotekaInput.files[0];
+
+    if (!kolekcijaId) {
+      Zajednicko.prikaziPoruku("Molimo odaberite kolekciju.", "greska");
+      return;
+    }
+
+    if (!datoteka) {
+      Zajednicko.prikaziPoruku("Molimo odaberite datoteku.", "greska");
+      return;
+    }
+
+    if (datoteka.size > MAKSIMALNA_VELICINA_DATOTEKE) {
+      Zajednicko.prikaziPoruku(
+        "Datoteka je prevelika. Maksimalna veličina je 1MB.",
+        "greska",
+      );
+      return;
+    }
+
+    const dozvoljeniTipovi = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+    ];
+    if (!dozvoljeniTipovi.includes(datoteka.type)) {
+      Zajednicko.prikaziPoruku("Nepodržani format datoteke.", "greska");
+      return;
+    }
+
+    const naziv = document.getElementById("naslovMultimedije").value.trim();
     const autor = document.getElementById("autor").value.trim();
-    const opis = document.getElementById("opisMultimedije").value.trim();
-    const godina = document.getElementById("godina").value;
-    const kategorija = document.getElementById("kategorija").value.trim();
 
-    if (!datoteka || !naslov) {
-      alert("Odaberite datoteku i unesite naslov");
+    if (!naziv) {
+      Zajednicko.prikaziPoruku("Molimo unesite naslov multimedije.", "greska");
       return;
     }
 
     const formData = new FormData();
     formData.append("datoteka", datoteka);
-    formData.append("naslov", naslov);
+    formData.append("naziv", naziv);
+    formData.append("kolekcijaId", kolekcijaId);
     formData.append("autor", autor);
-    formData.append("opis", opis);
-    formData.append("godina", godina);
-    formData.append("kategorija", kategorija);
 
     try {
-      const odgovor = await fetch("/api/multimedija/ucitaj", {
+      const odgovor = await fetch(`/api/multimedija`, {
         method: "POST",
         body: formData,
       });
 
-      if (odgovor.ok) {
-        alert("Multimedija uspješno učitana");
-        forma.reset();
-      } else {
-        alert("Greška pri učitavanju");
+      if (!odgovor.ok) {
+        const greska = await odgovor.json();
+        Zajednicko.prikaziPoruku(
+          greska.poruka || "Upload nije uspio.",
+          "greska",
+        );
+        return;
       }
-    } catch (err) {
-      console.error("Greška pri učitavanju:", err);
-      alert("Greška pri učitavanju");
-    }
-  });
-}
 
-// Inicijalizacija pri učitavanju
-document.addEventListener("DOMContentLoaded", () => {
-  pripremiFormaPretrageTMDB();
-  pripremiFormaUcitavanja();
+      Zajednicko.prikaziPoruku("Datoteka je uspješno uploadana.", "uspjeh");
+      datotekaInput.value = "";
+    } catch (greska) {
+      Zajednicko.obradiGresku(greska);
+    }
+  }
+
+  await ucitajKolekcije();
 });
